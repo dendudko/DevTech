@@ -115,8 +115,8 @@ def map_paint(map_image, df, left_top, kx, ky):
     # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
     colors = list(mcolors.CSS4_COLORS.keys())
     # Шум
-    # colors[-1] = 'black'
-    colors[-1] = 'red'
+    colors[-1] = 'black'
+    # colors[-1] = 'red'
     colors[7] = 'yellowgreen'
     colors = mcolors.to_rgba_array(colors)
 
@@ -138,6 +138,8 @@ def map_paint(map_image, df, left_top, kx, ky):
             red, green, blue, alpha = 1, 0, 0, 1
 
         context.set_source_rgba(red, green, blue, alpha)
+        # if 'cluster' not in df.columns or row['cluster'] != -1:
+        #     context.fill()
         context.fill()
 
     with open("../Map/map_crop_with_dots.png", "wb") as f:

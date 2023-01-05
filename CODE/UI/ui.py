@@ -1,6 +1,5 @@
 import sys
 
-import screeninfo
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
@@ -8,7 +7,7 @@ from PyQt6.QtCore import *
 from App.main import main
 
 
-class Example(QWidget):
+class UI(QWidget):
 
     def __init__(self):
         super().__init__()
@@ -66,5 +65,5 @@ class Example(QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = Example()
+    ex = UI()
     sys.exit(app.exec())
