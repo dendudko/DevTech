@@ -2,10 +2,12 @@ import io
 import urllib.request
 import random
 
+import pandas
 from cairo import ImageSurface, FORMAT_ARGB32, Context
 import math
 import mercantile
 import matplotlib.colors as mcolors
+import shapely
 
 
 def get_map(west, south, east, north, zoom, df, create_new=True):
@@ -121,26 +123,52 @@ def map_paint(map_image, df, left_top, kx, ky):
     colors = mcolors.to_rgba_array(colors)
 
     context = Context(map_image)
+    df1 = pandas.DataFrame(columns=['x', 'y', 'cluster'])
     for i, row in df.iterrows():
         # gps в web-mercator
         x, y = mercantile.xy(row['lat'], row['lon'])
         # переводим x, y в координаты изображения
         x = (x - left_top[0]) * kx
         y = (y - left_top[1]) * ky
-        context.arc(x, y, 4, 0 * math.pi / 180, 360 * math.pi / 180)
-
+        r = 0
         if 'cluster' in df.columns:
-            red = colors[int(row['cluster'])][0]
-            green = colors[int(row['cluster'])][1]
-            blue = colors[int(row['cluster'])][2]
-            alpha = colors[int(row['cluster'])][3]
+            red = colors[int(row['cluster'])*4][0]
+            green = colors[int(row['cluster'])*4][1]
+            blue = colors[int(row['cluster'])*4][2]
+            if int(row['cluster']) == -1:
+                alpha = 0.7
+                r = 2
+            else:
+                alpha = 1
+                r = 4
         else:
             red, green, blue, alpha = 1, 0, 0, 1
-
+        context.arc(x, y, r, 0 * math.pi / 180, 360 * math.pi / 180)
         context.set_source_rgba(red, green, blue, alpha)
         # if 'cluster' not in df.columns or row['cluster'] != -1:
         #     context.fill()
         context.fill()
+        # Добавляем расчитанную точку в новый датафрейм
+        df1.loc[df1.shape[0]] = [x, y, row['cluster']]
+
+    if 'cluster' in df.columns:
+        for i in range(int(max(df['cluster'])) + 1):
+            df2 = df1.where(df1['cluster'] == i).dropna(how='any')
+            polygon_geom = shapely.Polygon(zip(df2['x'].values.tolist(), df2['y'].values.tolist()))
+            polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
+            try:
+                a, b = polygon_geom2.exterior.coords.xy
+                bounds = tuple(list(zip(a, b)))
+                red = colors[i*4][0]
+                green = colors[i*4][1]
+                blue = colors[i*4][2]
+                alpha = 0.4
+                context.set_source_rgba(red, green, blue, alpha)
+                for dot in bounds:
+                    context.line_to(dot[0], dot[1])
+                context.fill()
+            except AttributeError:
+                pass
 
     with open("../Map/map_crop_with_dots.png", "wb") as f:
         map_image.write_to_png(f)
