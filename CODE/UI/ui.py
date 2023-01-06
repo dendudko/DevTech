@@ -58,7 +58,7 @@ class UI(QWidget):
         elif self.sender() == self.button_show_1000:
             main(nrows=1000)
 
-        self.pixmap = QPixmap("../Map/map_crop_with_dots.png")
+        self.pixmap = QPixmap("../Map/clustered_11.11.2015.png")
         self.pixmap.setDevicePixelRatio(1.5)
         self.lbl.setPixmap(self.pixmap.scaledToHeight(950, mode=Qt.TransformationMode.SmoothTransformation))
 
