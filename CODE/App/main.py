@@ -17,17 +17,16 @@ def main(nrows=None):
 
     # Хромая на обе ноги демонстрация DBSCAN, параметры не подобраны, метрика уже кастомная, веса наугад
     # dist_list = []
-
     def custom_dist(a, b, w1, w2, w3, w4):
         dist = (np.sqrt(w1 * (a[0] - b[0]) ** 2 + w2 * (a[1] - b[1]) ** 2 +
                         w3 * (a[2] - b[2]) ** 2 + w4 * (a[3] - b[3]) ** 2))
         # dist_list.append(dist)
         return dist
 
-    clustering = DBSCAN(eps=25, min_samples=5, metric=custom_dist,
-                        metric_params={'w1': 2, 'w2': 2, 'w3': 1, 'w4': 10}).fit_predict(df)
+    clustering = DBSCAN(eps=3.22, min_samples=30, metric=custom_dist,
+                        metric_params={'w1': 1.2, 'w2': 1.2, 'w3': 1, 'w4': 1.5}).fit_predict(df)
     df['cluster'] = clustering
-    # print(max(df['cluster']))
+    print(max(df['cluster']))
 
     get_map(min_lat, min_lon, max_lat, max_lon, 11, df, create_new=False)
 
@@ -42,6 +41,7 @@ def main(nrows=None):
     # dist_list_5.sort()
     # plt.plot(dist_list_5)
     # plt.show()
+    # ВЫШЕ В КОММЕНТАХ ПОПЫТКА СЧИТАТЬ 5 БЛИЖАЙШИХ СОСЕДЕЙ
 
 
 if __name__ == "__main__":
