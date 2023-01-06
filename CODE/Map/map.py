@@ -10,8 +10,8 @@ import matplotlib.colors as mcolors
 import shapely
 
 
-def get_map(west, south, east, north, zoom, df, create_new=True):
-    if create_new:
+def get_map(west, south, east, north, zoom, df, name, create_new_clean_map=False):
+    if create_new_clean_map:
         tiles = list(mercantile.tiles(west, south, east, north, zoom))
 
         min_x = min([t.x for t in tiles])
@@ -94,7 +94,7 @@ def get_map(west, south, east, north, zoom, df, create_new=True):
 
         map_image = map_image_clipped
     else:
-        map_image = ImageSurface.create_from_png('../Map/map_crop.png')
+        map_image = ImageSurface.create_from_png(f'../Map/{name}')
 
     # рассчитываем координаты углов в веб-меркаоторе
     left_top = tuple(mercantile.xy(west, north))
@@ -105,14 +105,14 @@ def get_map(west, south, east, north, zoom, df, create_new=True):
     ky = map_image.get_height() / (right_bottom[1] - left_top[1])
 
     # сохраняем результат
-    if create_new:
-        with open("../Map/map_crop.png", "wb") as f:
+    if create_new_clean_map:
+        with open(f'../Map/{name}', 'wb') as f:
             map_image.write_to_png(f)
 
-    map_paint(map_image, df, left_top, kx, ky)
+    map_paint(map_image, df, left_top, kx, ky, name)
 
 
-def map_paint(map_image, df, left_top, kx, ky):
+def map_paint(map_image, df, left_top, kx, ky, name):
     # тут создаем rgba массив цветов из CSS4, меняем [-1] элемент, чтобы шум был заданного нами цвета
     # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
     colors = list(mcolors.CSS4_COLORS.keys())
@@ -132,13 +132,16 @@ def map_paint(map_image, df, left_top, kx, ky):
         y = (y - left_top[1]) * ky
         r = 0
         if 'cluster' in df.columns:
-            red = colors[int(row['cluster'])*4][0]
-            green = colors[int(row['cluster'])*4][1]
-            blue = colors[int(row['cluster'])*4][2]
             if int(row['cluster']) == -1:
-                alpha = 0.7
-                r = 2
+                red = colors[-1][0]
+                green = colors[-1][1]
+                blue = colors[-1][2]
+                alpha = 0.6
+                r = 3
             else:
+                red = colors[int(row['cluster']) * 4][0]
+                green = colors[int(row['cluster']) * 4][1]
+                blue = colors[int(row['cluster']) * 4][2]
                 alpha = 1
                 r = 4
         else:
@@ -170,5 +173,5 @@ def map_paint(map_image, df, left_top, kx, ky):
             except AttributeError:
                 pass
 
-    with open("../Map/map_crop_with_dots.png", "wb") as f:
+    with open(f'../Map/clustered_{name}', 'wb') as f:
         map_image.write_to_png(f)
