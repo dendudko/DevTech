@@ -6,7 +6,8 @@ import mpu
 
 
 def main(nrows=None):
-    file_name = '12.11.2015'
+    file_name = '11.11.2015'
+    # Пока что берем данные для одного дня, если брать больше - DBSCAN работает крайне долго
     df = load_data(f'{file_name}.xlsx', 'marine.xlsx', create_new_clean_xlsx=False)
     min_lat = df['lat'].min()
     min_lon = df['lon'].min()
@@ -33,9 +34,9 @@ def main(nrows=None):
     clusters = DBSCAN(eps=11.5, min_samples=23, metric=custom_dist,
                       metric_params={'w1': 1.2, 'w2': 1.2, 'w3': 1, 'w4': 1.2}).fit_predict(df)
     df['cluster'] = clusters
-    print('Всего кластеров:', max(df['cluster'])+1)
+    print('Всего кластеров:', max(df['cluster']) + 1)
 
-    get_map(min_lat, min_lon, max_lat, max_lon, 11, df, f'{file_name}.png', create_new_clean_map=True)
+    get_map(min_lat, min_lon, max_lat, max_lon, 11, df, f'{file_name}.png', create_new_clean_map=False)
 
 
 if __name__ == "__main__":

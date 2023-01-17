@@ -21,7 +21,6 @@ def get_map(west, south, east, north, zoom, df, name, create_new_clean_map=False
 
         tile_size = (256, 256)
         # создаем пустое изображение в которое как мозайку будем вставлять тайлы
-        # для начала просто попробуем отобразить все четыре тайла в строчку
         map_image = ImageSurface(
             FORMAT_ARGB32,
             tile_size[0] * (max_x - min_x + 1),
@@ -47,7 +46,7 @@ def get_map(west, south, east, north, zoom, df, name, create_new_clean_map=False
                 x=t.x,
                 y=t.y
             )
-            print(url)
+            # print(url)
             request = urllib.request.Request(url=url, headers=headers)
             response = urllib.request.urlopen(request)
 
