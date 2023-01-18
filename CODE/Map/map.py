@@ -8,6 +8,7 @@ import math
 import mercantile
 import matplotlib.colors as mcolors
 import shapely
+import numpy as np
 
 
 def get_map(west, south, east, north, zoom, df, name, create_new_clean_map=False):
@@ -123,6 +124,7 @@ def map_paint(map_image, df, left_top, kx, ky, name):
 
     context = Context(map_image)
     df1 = pandas.DataFrame(columns=['x', 'y', 'cluster'])
+    color_costyl = 3
     for i, row in df.iterrows():
         # gps в web-mercator
         x, y = mercantile.xy(row['lat'], row['lon'])
@@ -138,9 +140,9 @@ def map_paint(map_image, df, left_top, kx, ky, name):
                 alpha = 0.6
                 r = 3
             else:
-                red = colors[int(row['cluster']) * 4][0]
-                green = colors[int(row['cluster']) * 4][1]
-                blue = colors[int(row['cluster']) * 4][2]
+                red = colors[int(row['cluster']) * color_costyl][0]
+                green = colors[int(row['cluster']) * color_costyl][1]
+                blue = colors[int(row['cluster']) * color_costyl][2]
                 alpha = 1
                 r = 4
         else:
@@ -153,24 +155,62 @@ def map_paint(map_image, df, left_top, kx, ky, name):
         # Добавляем расчитанную точку в новый датафрейм
         df1.loc[df1.shape[0]] = [x, y, row['cluster']]
 
+    # Создаем и добавляем полигоны
+    polygons = []
+    polygon_bounds = []
     if 'cluster' in df.columns:
         for i in range(int(max(df['cluster'])) + 1):
-            df2 = df1.where(df1['cluster'] == i).dropna(how='any')
-            polygon_geom = shapely.Polygon(zip(df2['x'].values.tolist(), df2['y'].values.tolist()))
+            polygons.append(df1.where(df1['cluster'] == i).dropna(how='any'))
+            polygon_geom = shapely.Polygon(zip(polygons[i]['x'].values.tolist(), polygons[i]['y'].values.tolist()))
             polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
-            try:
+            # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
+            if isinstance(polygon_geom2, shapely.Polygon):
                 a, b = polygon_geom2.exterior.coords.xy
-                bounds = tuple(list(zip(a, b)))
-                red = colors[i*4][0]
-                green = colors[i*4][1]
-                blue = colors[i*4][2]
+                polygon_bounds.append(tuple(list(zip(a, b))))
+                red = colors[i * color_costyl][0]
+                green = colors[i * color_costyl][1]
+                blue = colors[i * color_costyl][2]
                 alpha = 0.4
                 context.set_source_rgba(red, green, blue, alpha)
-                for dot in bounds:
+                # Берем последний элемент массива из-за рассинхронизации со счетчиком i
+                for dot in polygon_bounds[-1]:
                     context.line_to(dot[0], dot[1])
                 context.fill()
-            except AttributeError:
-                pass
+
+    # Ищем пересечения полигонов
+    intersections = []
+    intersection_bounds = []
+    for i in range(len(polygon_bounds)):
+        for j in range(i + 1, len(polygon_bounds)):
+            if shapely.intersects(shapely.Polygon(polygon_bounds[i]), shapely.Polygon(polygon_bounds[j])):
+                intersections.append(shapely.intersection(shapely.Polygon(polygon_bounds[i]),
+                                                          shapely.Polygon(polygon_bounds[j])))
+    for i in range(len(intersections)):
+        # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
+        if isinstance(intersections[i], shapely.Polygon):
+            a, b = intersections[i].exterior.coords.xy
+            intersection_bounds.append(tuple(list(zip(a, b))))
+    for i in range(len(intersection_bounds)):
+        red = 0
+        green = 0
+        blue = 0
+        alpha = 0.3
+        context.set_source_rgba(red, green, blue, alpha)
+        for dot in intersection_bounds[i]:
+            context.line_to(dot[0], dot[1])
+        context.fill()
+
+    # Накидываем точки на границу пересечения полигонов
+    # Пока что не сохраняю, для какого пересечения и каких кластеров получены точки
+    points = []
+    for i in range(len(intersection_bounds)):
+        distance_delta = 5
+        distances = np.arange(0, shapely.LineString(intersection_bounds[i]).length, distance_delta)
+        points.append([shapely.LineString(intersection_bounds[i]).interpolate(distance) for distance in distances])
+        for dot in points[-1]:
+            context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+            context.set_source_rgba(255, 0, 0, 1)
+            context.fill()
 
     with open(f'../Map/clustered_{name}', 'wb') as f:
         map_image.write_to_png(f)
