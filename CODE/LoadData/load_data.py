@@ -4,7 +4,7 @@ import pandas as pd
 
 # pd.set_option('display.max_rows', None, 'display.max_columns', None)
 
-# clean_all_merged был собран по кускам, кода не осталось(
+# clean_all_merged.xlsx был собран по кускам, кода не осталось(
 
 # data_file_name - название файла с данными за день
 # marine_file_name - название файла с данными о судах
