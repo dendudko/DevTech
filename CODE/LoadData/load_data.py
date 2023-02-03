@@ -1,10 +1,9 @@
 import os.path
-
 import pandas as pd
 
 
 # pd.set_option('display.max_rows', None, 'display.max_columns', None)
-#
+
 
 # data_file_name - название файла с данными за день
 # marine_file_name - название файла с данными о судах
@@ -21,10 +20,15 @@ def load_data(data_file_name, marine_file_name, create_new_clean_xlsx=False):
 
 
 def process_data(df_data, df_marine, data_file_name):
-    df_data = df_data.drop(columns={'id_track', 'age', 'date_add'})
+    # Если лишних столбцов нет - пропускаем их удаление
+    try:
+        df_data = df_data.drop(columns={'id_track', 'age', 'date_add'})
+    except KeyError:
+        pass
     df_data = df_data.drop_duplicates()
     df_data = pd.merge(df_data, df_marine[['id_marine', 'port', 'length']], how='left', on='id_marine').dropna(axis=0)
-    df_data = df_data.loc[(df_data['course'] != 511) & (df_data['port'] != 0) & (df_data['length'] != 0)].reset_index(drop=True)
+    df_data = df_data.loc[(df_data['course'] != 511) & (df_data['port'] != 0) & (df_data['length'] != 0)].reset_index(
+        drop=True)
     df_data = df_data[['lat', 'lon', 'speed', 'course']]
     df_data.to_excel(f'../DB/clean_{data_file_name}', index=False)
     return df_data
