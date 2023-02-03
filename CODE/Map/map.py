@@ -11,206 +11,256 @@ import shapely
 import numpy as np
 
 
-def get_map(west, south, east, north, zoom, df, name, create_new_clean_map=False):
-    if create_new_clean_map:
-        tiles = list(mercantile.tiles(west, south, east, north, zoom))
-
-        min_x = min([t.x for t in tiles])
-        min_y = min([t.y for t in tiles])
-        max_x = max([t.x for t in tiles])
-        max_y = max([t.y for t in tiles])
-
-        tile_size = (256, 256)
-        # создаем пустое изображение в которое как мозайку будем вставлять тайлы
-        map_image = ImageSurface(
-            FORMAT_ARGB32,
-            tile_size[0] * (max_x - min_x + 1),
-            tile_size[1] * (max_y - min_y + 1)
-        )
-
-        ctx = Context(map_image)
-
-        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'
-                                 'AppleWebKit/537.11 (KHTML, like Gecko)'
-                                 'Chrome/23.0.1271.64 Safari/537.11',
-                   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                   'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
-                   'Accept-Encoding': 'none',
-                   'Accept-Language': 'en-US,en;q=0.8',
-                   'Connection': 'keep-alive'}
-
-        for t in tiles:
-            server = random.choice(['a', 'b', 'c'])  # у OSM три сервера, распределяем нагрузку
-            url = 'http://{server}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'.format(
-                server=server,
-                zoom=t.z,
-                x=t.x,
-                y=t.y
-            )
-            # print(url)
-            request = urllib.request.Request(url=url, headers=headers)
-            response = urllib.request.urlopen(request)
-
-            img = ImageSurface.create_from_png(io.BytesIO(response.read()))
-
-            ctx.set_source_surface(
-                img,
-                (t.x - min_x) * tile_size[0],
-                (t.y - min_y) * tile_size[0]
-            )
-            ctx.paint()
-
-        # расчитываем коэффициенты
-        bounds = {
-            "left": min([mercantile.xy_bounds(t).left for t in tiles]),
-            "right": max([mercantile.xy_bounds(t).right for t in tiles]),
-            "bottom": min([mercantile.xy_bounds(t).bottom for t in tiles]),
-            "top": max([mercantile.xy_bounds(t).top for t in tiles]),
-        }
-
-        # коэффициенты скалирования по оси x и y
-        kx = map_image.get_width() / (bounds['right'] - bounds['left'])
-        ky = map_image.get_height() / (bounds['top'] - bounds['bottom'])
-
-        # пересчитываем размеры по которым будем обрезать
-        left_top = mercantile.xy(west, north)
-        right_bottom = mercantile.xy(east, south)
-        offset_left = (left_top[0] - bounds['left']) * kx
-        offset_top = (bounds['top'] - left_top[1]) * ky
-        offset_right = (bounds['right'] - right_bottom[0]) * kx
-        offset_bottom = (right_bottom[1] - bounds['bottom']) * ky
-
-        # обрезанное изображение
-        map_image_clipped = ImageSurface(
-            FORMAT_ARGB32,
-            map_image.get_width() - int(offset_left + offset_right),
-            map_image.get_height() - int(offset_top + offset_bottom),
-        )
-
-        # вставляем кусок исходного изображения
-        ctx = Context(map_image_clipped)
-        ctx.set_source_surface(map_image, -offset_left, -offset_top)
-        ctx.paint()
-
-        map_image = map_image_clipped
-    else:
-        map_image = ImageSurface.create_from_png(f'../Map/{name}')
-
-    # рассчитываем координаты углов в веб-меркаоторе
-    left_top = tuple(mercantile.xy(west, north))
-    right_bottom = tuple(mercantile.xy(east, south))
-
-    # расчитываем коэффициенты
-    kx = map_image.get_width() / (right_bottom[0] - left_top[0])
-    ky = map_image.get_height() / (right_bottom[1] - left_top[1])
-
-    # сохраняем результат
-    if create_new_clean_map:
-        with open(f'../Map/{name}', 'wb') as f:
-            map_image.write_to_png(f)
-
-    map_paint(map_image, df, left_top, kx, ky, name)
-
-
-def map_paint(map_image, df, left_top, kx, ky, name):
+def get_colors():
     # тут создаем rgba массив цветов из CSS4, меняем [-1] элемент, чтобы шум был заданного нами цвета
     # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
     colors = list(mcolors.CSS4_COLORS.keys())
     # Шум
+    # Меняем местами в массиве черый и желто-зеленый
     colors[-1] = 'black'
     # colors[-1] = 'red'
     colors[7] = 'yellowgreen'
     colors = mcolors.to_rgba_array(colors)
+    return colors
 
-    context = Context(map_image)
-    df1 = pandas.DataFrame(columns=['x', 'y', 'cluster'])
-    color_costyl = 3
-    for i, row in df.iterrows():
+
+colors = get_colors()
+color_costyl = 5
+
+
+class MapBuilder:
+    def __init__(self, west, south, east, north, zoom, df, file_name, create_new_empty_map=False, save_count=-1):
+        # Задаваемые параметры
+        self.west = west
+        self.south = south
+        self.east = east
+        self.north = north
+        self.zoom = zoom
+        self.df = df
+        self.file_name = file_name
+        self.create_new_empty_map = create_new_empty_map
+        self.save_count = save_count
+
+        # Местные поля
+        self.map_image = None
+        self.left_top = None
+        self.kx = None
+        self.ky = None
+        self.context = None
+
+        self.df_points_on_image = pandas.DataFrame()
+        self.polygons = []
+        self.polygon_bounds = []
+        self.intersections = {}
+        self.intersection_bounds = {}
+        self.intersection_bounds_points = {}
+
+    def show_points(self):
+        self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'cluster'])
+
+        # Добавляем объекты с пересчитанными координатами в df_points_on_image
         # gps в web-mercator
-        x, y = mercantile.xy(row['lat'], row['lon'])
+        xy = [mercantile.xy(x, y) for x, y in zip(self.df.lat, self.df.lon)]
         # переводим x, y в координаты изображения
-        x = (x - left_top[0]) * kx
-        y = (y - left_top[1]) * ky
-        r = 0
-        if 'cluster' in df.columns:
-            if int(row['cluster']) == -1:
+        self.df_points_on_image.x = [(row[0] - self.left_top[0]) * self.kx for row in xy]
+        self.df_points_on_image.y = [(row[1] - self.left_top[1]) * self.ky for row in xy]
+        self.df_points_on_image.cluster = self.df.cluster
+
+        for row in self.df_points_on_image.itertuples(index=False):
+            r = 0
+            if int(row[2]) == -1:
                 red = colors[-1][0]
                 green = colors[-1][1]
                 blue = colors[-1][2]
                 alpha = 0.6
                 r = 3
             else:
-                red = colors[int(row['cluster']) * color_costyl][0]
-                green = colors[int(row['cluster']) * color_costyl][1]
-                blue = colors[int(row['cluster']) * color_costyl][2]
+                red = colors[int(row[2]) * color_costyl][0]
+                green = colors[int(row[2]) * color_costyl][1]
+                blue = colors[int(row[2]) * color_costyl][2]
                 alpha = 1
                 r = 4
+            self.context.arc(row[0], row[1], r, 0 * math.pi / 180, 360 * math.pi / 180)
+            self.context.set_source_rgba(red, green, blue, alpha)
+            self.context.fill()
+
+    def show_polygons(self):
+        # Создаем и добавляем полигоны
+        if 'cluster' in self.df_points_on_image.columns:
+            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
+                self.polygons.append(
+                    self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(how='any'))
+                polygon_geom = shapely.Polygon(
+                    zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
+                polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
+                # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
+                if isinstance(polygon_geom2, shapely.Polygon):
+                    a, b = polygon_geom2.exterior.coords.xy
+                    self.polygon_bounds.append(tuple(list(zip(a, b))))
+                    red = colors[i * color_costyl][0]
+                    green = colors[i * color_costyl][1]
+                    blue = colors[i * color_costyl][2]
+                    alpha = 0.4
+                    self.context.set_source_rgba(red, green, blue, alpha)
+                    # Берем последний элемент массива из-за рассинхронизации со счетчиком i
+                    for dot in self.polygon_bounds[-1]:
+                        self.context.line_to(dot[0], dot[1])
+                    self.context.fill()
+
+    def show_intersections(self):
+        # Ищем и отображаем пересечения полигонов
+        self.intersections = {}
+        self.intersection_bounds = {}
+        for i in range(len(self.polygon_bounds)):
+            for j in range(i + 1, len(self.polygon_bounds)):
+                if shapely.intersects(shapely.Polygon(self.polygon_bounds[i]), shapely.Polygon(self.polygon_bounds[j])):
+                    self.intersections[i, j] = (shapely.intersection(shapely.Polygon(self.polygon_bounds[i]),
+                                                                     shapely.Polygon(self.polygon_bounds[j])))
+        for key, intersection in self.intersections.items():
+            # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
+            if isinstance(intersection, shapely.Polygon):
+                a, b = intersection.exterior.coords.xy
+                self.intersection_bounds[key] = (tuple(list(zip(a, b))))
+        for key, intersection_bound in self.intersection_bounds.items():
+            red = 0
+            green = 0
+            blue = 0
+            alpha = 0.3
+            self.context.set_source_rgba(red, green, blue, alpha)
+            for dot in intersection_bound:
+                self.context.line_to(dot[0], dot[1])
+            self.context.fill()
+
+    def show_intersection_bounds_points(self):
+        # Накидываем точки на границу пересечения полигонов
+        # Пока что не сохраняю, для какого пересечения и каких кластеров получены точки
+        self.intersection_bounds_points = {}
+        for key, intersection_bound in self.intersection_bounds.items():
+            # Расстояние между точками границы пересечения
+            distance_delta = 5
+            distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
+            self.intersection_bounds_points[key] = (
+                [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
+            for dot in self.intersection_bounds_points[key]:
+                self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                self.context.set_source_rgba(255, 0, 0, 1)
+                self.context.fill()
+
+    def save_clustered_image(self):
+        if self.save_count != -1:
+            file_name = self.file_name + '_' + str(self.save_count)
+            with open(f'../Map/clustered_{file_name}.png', 'wb') as f:
+                self.map_image.write_to_png(f)
         else:
-            red, green, blue, alpha = 1, 0, 0, 1
-        context.arc(x, y, r, 0 * math.pi / 180, 360 * math.pi / 180)
-        context.set_source_rgba(red, green, blue, alpha)
-        # if 'cluster' not in df.columns or row['cluster'] != -1:
-        #     context.fill()
-        context.fill()
-        # Добавляем расчитанную точку в новый датафрейм
-        df1.loc[df1.shape[0]] = [x, y, row['cluster']]
+            with open(f'../Map/clustered_{self.file_name}.png', 'wb') as f:
+                self.map_image.write_to_png(f)
+        f.close()
 
-    # Создаем и добавляем полигоны
-    polygons = []
-    polygon_bounds = []
-    if 'cluster' in df.columns:
-        for i in range(int(max(df['cluster'])) + 1):
-            polygons.append(df1.where(df1['cluster'] == i).dropna(how='any'))
-            polygon_geom = shapely.Polygon(zip(polygons[i]['x'].values.tolist(), polygons[i]['y'].values.tolist()))
-            polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
-            # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
-            if isinstance(polygon_geom2, shapely.Polygon):
-                a, b = polygon_geom2.exterior.coords.xy
-                polygon_bounds.append(tuple(list(zip(a, b))))
-                red = colors[i * color_costyl][0]
-                green = colors[i * color_costyl][1]
-                blue = colors[i * color_costyl][2]
-                alpha = 0.4
-                context.set_source_rgba(red, green, blue, alpha)
-                # Берем последний элемент массива из-за рассинхронизации со счетчиком i
-                for dot in polygon_bounds[-1]:
-                    context.line_to(dot[0], dot[1])
-                context.fill()
+    def create_clustered_map(self):
+        self.create_empty_map()
+        self.show_points()
+        self.show_polygons()
+        self.show_intersections()
+        self.show_intersection_bounds_points()
+        self.save_clustered_image()
 
-    # Ищем пересечения полигонов
-    intersections = []
-    intersection_bounds = []
-    for i in range(len(polygon_bounds)):
-        for j in range(i + 1, len(polygon_bounds)):
-            if shapely.intersects(shapely.Polygon(polygon_bounds[i]), shapely.Polygon(polygon_bounds[j])):
-                intersections.append(shapely.intersection(shapely.Polygon(polygon_bounds[i]),
-                                                          shapely.Polygon(polygon_bounds[j])))
-    for i in range(len(intersections)):
-        # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
-        if isinstance(intersections[i], shapely.Polygon):
-            a, b = intersections[i].exterior.coords.xy
-            intersection_bounds.append(tuple(list(zip(a, b))))
-    for i in range(len(intersection_bounds)):
-        red = 0
-        green = 0
-        blue = 0
-        alpha = 0.3
-        context.set_source_rgba(red, green, blue, alpha)
-        for dot in intersection_bounds[i]:
-            context.line_to(dot[0], dot[1])
-        context.fill()
+    def create_empty_map(self):
+        if self.create_new_empty_map:
+            tiles = list(mercantile.tiles(self.west, self.south, self.east, self.north, self.zoom))
 
-    # Накидываем точки на границу пересечения полигонов
-    # Пока что не сохраняю, для какого пересечения и каких кластеров получены точки
-    points = []
-    for i in range(len(intersection_bounds)):
-        distance_delta = 5
-        distances = np.arange(0, shapely.LineString(intersection_bounds[i]).length, distance_delta)
-        points.append([shapely.LineString(intersection_bounds[i]).interpolate(distance) for distance in distances])
-        for dot in points[-1]:
-            context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-            context.set_source_rgba(255, 0, 0, 1)
-            context.fill()
+            min_x = min([t.x for t in tiles])
+            min_y = min([t.y for t in tiles])
+            max_x = max([t.x for t in tiles])
+            max_y = max([t.y for t in tiles])
 
-    with open(f'../Map/clustered_{name}', 'wb') as f:
-        map_image.write_to_png(f)
+            tile_size = (256, 256)
+            # создаем пустое изображение в которое как мозайку будем вставлять тайлы
+            self.map_image = ImageSurface(
+                FORMAT_ARGB32,
+                tile_size[0] * (max_x - min_x + 1),
+                tile_size[1] * (max_y - min_y + 1)
+            )
+
+            ctx = Context(self.map_image)
+
+            headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'
+                                     'AppleWebKit/537.11 (KHTML, like Gecko)'
+                                     'Chrome/23.0.1271.64 Safari/537.11',
+                       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                       'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+                       'Accept-Encoding': 'none',
+                       'Accept-Language': 'en-US,en;q=0.8',
+                       'Connection': 'keep-alive'}
+
+            for t in tiles:
+                server = random.choice(['a', 'b', 'c'])  # у OSM три сервера, распределяем нагрузку
+                url = 'http://{server}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'.format(
+                    server=server,
+                    zoom=t.z,
+                    x=t.x,
+                    y=t.y
+                )
+                # print(url)
+                request = urllib.request.Request(url=url, headers=headers)
+                response = urllib.request.urlopen(request)
+
+                img = ImageSurface.create_from_png(io.BytesIO(response.read()))
+
+                ctx.set_source_surface(
+                    img,
+                    (t.x - min_x) * tile_size[0],
+                    (t.y - min_y) * tile_size[0]
+                )
+                ctx.paint()
+
+            # расчитываем коэффициенты
+            bounds = {
+                "left": min([mercantile.xy_bounds(t).left for t in tiles]),
+                "right": max([mercantile.xy_bounds(t).right for t in tiles]),
+                "bottom": min([mercantile.xy_bounds(t).bottom for t in tiles]),
+                "top": max([mercantile.xy_bounds(t).top for t in tiles]),
+            }
+
+            # коэффициенты скалирования по оси x и y
+            self.kx = self.map_image.get_width() / (bounds['right'] - bounds['left'])
+            self.ky = self.map_image.get_height() / (bounds['top'] - bounds['bottom'])
+
+            # пересчитываем размеры по которым будем обрезать
+            self.left_top = mercantile.xy(self.west, self.north)
+            right_bottom = mercantile.xy(self.east, self.south)
+            offset_left = (self.left_top[0] - bounds['left']) * self.kx
+            offset_top = (bounds['top'] - self.left_top[1]) * self.ky
+            offset_right = (bounds['right'] - right_bottom[0]) * self.kx
+            offset_bottom = (right_bottom[1] - bounds['bottom']) * self.ky
+
+            # обрезанное изображение
+            map_image_clipped = ImageSurface(
+                FORMAT_ARGB32,
+                self.map_image.get_width() - int(offset_left + offset_right),
+                self.map_image.get_height() - int(offset_top + offset_bottom),
+            )
+
+            # вставляем кусок исходного изображения
+            ctx = Context(map_image_clipped)
+            ctx.set_source_surface(self.map_image, -offset_left, -offset_top)
+            ctx.paint()
+
+            self.map_image = map_image_clipped
+        else:
+            self.map_image = ImageSurface.create_from_png(f'../Map/{self.file_name}.png')
+
+        # рассчитываем координаты углов в веб-меркаоторе
+        self.left_top = tuple(mercantile.xy(self.west, self.north))
+        right_bottom = tuple(mercantile.xy(self.east, self.south))
+
+        # расчитываем коэффициенты
+        self.kx = self.map_image.get_width() / (right_bottom[0] - self.left_top[0])
+        self.ky = self.map_image.get_height() / (right_bottom[1] - self.left_top[1])
+
+        # сохраняем результат
+        if self.create_new_empty_map:
+            with open(f'../Map/{self.file_name}.png', 'wb') as f:
+                self.map_image.write_to_png(f)
+                f.close()
+
+        self.context = Context(self.map_image)
