@@ -69,7 +69,7 @@ def run_tests():
     log_for_file += log
     print(log)
 
-    with open('log.txt', 'w') as f:
+    with open('log.txt', 'w', encoding='utf-16') as f:
         f.write(log_for_file)
         f.close()
 
