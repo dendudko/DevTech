@@ -25,7 +25,7 @@ def get_colors():
 
 
 colors = get_colors()
-color_costyl = 5
+color_costyl = 10
 
 
 class MapBuilder:
@@ -73,13 +73,13 @@ class MapBuilder:
                 green = colors[-1][1]
                 blue = colors[-1][2]
                 alpha = 0.6
-                r = 3
+                r = 2
             else:
                 red = colors[int(row[2]) * color_costyl][0]
                 green = colors[int(row[2]) * color_costyl][1]
                 blue = colors[int(row[2]) * color_costyl][2]
                 alpha = 1
-                r = 4
+                r = 2
             self.context.arc(row[0], row[1], r, 0 * math.pi / 180, 360 * math.pi / 180)
             self.context.set_source_rgba(red, green, blue, alpha)
             self.context.fill()
