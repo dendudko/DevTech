@@ -55,8 +55,8 @@ class MapBuilder:
         self.intersection_bounds = {}
         self.intersection_bounds_points = {}
 
-    def show_points(self):
-        self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'cluster'])
+    def calculate_points_on_image(self):
+        self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
 
         # Добавляем объекты с пересчитанными координатами в df_points_on_image
         # gps в web-mercator
@@ -64,25 +64,37 @@ class MapBuilder:
         # переводим x, y в координаты изображения
         self.df_points_on_image.x = [(row[0] - self.left_top[0]) * self.kx for row in xy]
         self.df_points_on_image.y = [(row[1] - self.left_top[1]) * self.ky for row in xy]
+        self.df_points_on_image.speed = self.df.speed
+        self.df_points_on_image.course = self.df.course
         self.df_points_on_image.cluster = self.df.cluster
 
-        for row in self.df_points_on_image.itertuples(index=False):
+    def show_points(self):
+        # Снижаю количество отображаемых точек (надо бы найти какой-то нормальный алгоритм)
+        for row in self.df_points_on_image.sample(frac=0.1).itertuples(index=False):
             r = 0
-            if int(row[2]) == -1:
+            if int(row[4]) == -1:
                 red = colors[-1][0]
                 green = colors[-1][1]
                 blue = colors[-1][2]
-                alpha = 0.6
+                alpha = 0.25
                 r = 2
             else:
-                red = colors[int(row[2]) * color_costyl][0]
-                green = colors[int(row[2]) * color_costyl][1]
-                blue = colors[int(row[2]) * color_costyl][2]
+                red = colors[int(row[4]) * color_costyl][0]
+                green = colors[int(row[4]) * color_costyl][1]
+                blue = colors[int(row[4]) * color_costyl][2]
                 alpha = 1
                 r = 2
             self.context.arc(row[0], row[1], r, 0 * math.pi / 180, 360 * math.pi / 180)
             self.context.set_source_rgba(red, green, blue, alpha)
             self.context.fill()
+
+            # Рисуем линии, отображающие направление, стрелки перегружают картинку, будут просто линии)
+            self.context.set_line_width(1.5)
+            self.context.move_to(row[0], row[1])
+            # Не уверен в какую сторону должно быть направление (+90 / -90), надо уточнить
+            angle = math.radians(row[3] + 90)
+            self.context.line_to(row[0] + row[2] / 10 * math.cos(angle), row[1] + row[2] / 10 * math.sin(angle))
+            self.context.stroke()
 
     def show_polygons(self):
         # Создаем и добавляем полигоны
@@ -100,7 +112,7 @@ class MapBuilder:
                     red = colors[i * color_costyl][0]
                     green = colors[i * color_costyl][1]
                     blue = colors[i * color_costyl][2]
-                    alpha = 0.4
+                    alpha = 0.25
                     self.context.set_source_rgba(red, green, blue, alpha)
                     # Берем последний элемент массива из-за рассинхронизации со счетчиком i
                     for dot in self.polygon_bounds[-1]:
@@ -125,7 +137,7 @@ class MapBuilder:
             red = 0
             green = 0
             blue = 0
-            alpha = 0.3
+            alpha = 0.1
             self.context.set_source_rgba(red, green, blue, alpha)
             for dot in intersection_bound:
                 self.context.line_to(dot[0], dot[1])
@@ -158,10 +170,11 @@ class MapBuilder:
 
     def create_clustered_map(self):
         self.create_empty_map()
-        self.show_points()
+        self.calculate_points_on_image()
         self.show_polygons()
         self.show_intersections()
         self.show_intersection_bounds_points()
+        self.show_points()
         self.save_clustered_image()
 
     def create_empty_map(self):
