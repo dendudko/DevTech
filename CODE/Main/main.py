@@ -50,7 +50,7 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
 
     # Удаление шума, спорное решение
     # df = df.loc[(df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
-    if max(df['cluster']) + 1 <= 50:
+    if max(df['cluster']) + 1 <= 147:
         map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=11, df=df,
                                  file_name=f'{file_name}', create_new_empty_map=create_new_empty_map,
                                  save_count=save_count)
