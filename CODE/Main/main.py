@@ -47,7 +47,6 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
     main_log += 'min_samples = ' + str(min_samples) + '\n'
     main_log += 'Всего кластеров: ' + str(max(df['cluster']) + 1) + '\n'
     main_log += 'Доля шума: ' + str(df['cluster'].value_counts()[-1]) + ' / ' + str(len(df)) + '\n'
-    # print(main_log)
 
     # Удаление шума, спорное решение
     # df = df.loc[(df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
