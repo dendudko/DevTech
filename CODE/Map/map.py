@@ -12,20 +12,17 @@ import numpy as np
 
 
 def get_colors():
-    # тут создаем rgba массив цветов из CSS4, меняем [-1] элемент, чтобы шум был заданного нами цвета
+    # тут создаем rgba массив цветов из CSS4 и перемешиваем
     # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
-    colors = list(mcolors.CSS4_COLORS.keys())
-    # Шум
-    # Меняем местами в массиве черый и желто-зеленый
-    colors[-1] = 'black'
-    # colors[-1] = 'red'
-    colors[7] = 'yellowgreen'
-    colors = mcolors.to_rgba_array(colors)
-    return colors
+    # Удаляю черный
+    css4_colors = list(mcolors.CSS4_COLORS.keys())
+    random.shuffle(css4_colors)
+    css4_colors.remove('black')
+    css4_colors = mcolors.to_rgba_array(css4_colors)
+    return css4_colors
 
 
 colors = get_colors()
-color_costyl = 10
 
 
 class MapBuilder:
@@ -71,17 +68,16 @@ class MapBuilder:
     def show_points(self):
         # Снижаю количество отображаемых точек (надо бы найти какой-то нормальный алгоритм)
         for row in self.df_points_on_image.sample(frac=0.1).itertuples(index=False):
-            r = 0
             if int(row[4]) == -1:
-                red = colors[-1][0]
-                green = colors[-1][1]
-                blue = colors[-1][2]
+                red = 0
+                green = 0
+                blue = 0
                 alpha = 0.25
                 r = 2
             else:
-                red = colors[int(row[4]) * color_costyl][0]
-                green = colors[int(row[4]) * color_costyl][1]
-                blue = colors[int(row[4]) * color_costyl][2]
+                red = colors[int(row[4])][0]
+                green = colors[int(row[4])][1]
+                blue = colors[int(row[4])][2]
                 alpha = 1
                 r = 2
             self.context.arc(row[0], row[1], r, 0 * math.pi / 180, 360 * math.pi / 180)
@@ -109,9 +105,9 @@ class MapBuilder:
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
                     self.polygon_bounds.append(tuple(list(zip(a, b))))
-                    red = colors[i * color_costyl][0]
-                    green = colors[i * color_costyl][1]
-                    blue = colors[i * color_costyl][2]
+                    red = colors[i][0]
+                    green = colors[i][1]
+                    blue = colors[i][2]
                     alpha = 0.25
                     self.context.set_source_rgba(red, green, blue, alpha)
                     # Берем последний элемент массива из-за рассинхронизации со счетчиком i
@@ -161,10 +157,10 @@ class MapBuilder:
     def save_clustered_image(self):
         if self.save_count != -1:
             file_name = self.file_name + '_' + str(self.save_count)
-            with open(f'../Map/clustered_{file_name}.png', 'wb') as f:
+            with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
                 self.map_image.write_to_png(f)
         else:
-            with open(f'../Map/clustered_{self.file_name}.png', 'wb') as f:
+            with open(f'../images/clustered/clustered_{self.file_name}.png', 'wb') as f:
                 self.map_image.write_to_png(f)
         f.close()
 
@@ -260,7 +256,7 @@ class MapBuilder:
 
             self.map_image = map_image_clipped
         else:
-            self.map_image = ImageSurface.create_from_png(f'../Map/{self.file_name}.png')
+            self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
 
         # рассчитываем координаты углов в веб-меркаоторе
         self.left_top = tuple(mercantile.xy(self.west, self.north))
@@ -272,7 +268,7 @@ class MapBuilder:
 
         # сохраняем результат
         if self.create_new_empty_map:
-            with open(f'../Map/{self.file_name}.png', 'wb') as f:
+            with open(f'../images/clean/{self.file_name}.png', 'wb') as f:
                 self.map_image.write_to_png(f)
                 f.close()
 
