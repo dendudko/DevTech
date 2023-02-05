@@ -40,6 +40,7 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
                           metric_params={'w': [2, 2, 1, 10]}).fit_predict(X)
         # clusters = DBSCAN(eps=eps, min_samples=min_samples, metric=custom_dist,
         #                   metric_params={'w1': 5000, 'w2': 0.033, 'w3': 0.083}).fit_predict(df)
+
     df['cluster'] = clusters
 
     main_log = 'Номер эксперимента: ' + str(save_count) + '\n'
@@ -48,8 +49,6 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
     main_log += 'Всего кластеров: ' + str(max(df['cluster']) + 1) + '\n'
     main_log += 'Доля шума: ' + str(df['cluster'].value_counts()[-1]) + ' / ' + str(len(df)) + '\n'
 
-    # Удаление шума, спорное решение
-    # df = df.loc[(df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
     if max(df['cluster']) + 1 <= 147:
         map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=11, df=df,
                                  file_name=f'{file_name}', create_new_empty_map=create_new_empty_map,

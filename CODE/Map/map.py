@@ -52,6 +52,10 @@ class MapBuilder:
         self.intersection_bounds = {}
         self.intersection_bounds_points = {}
 
+    def delete_noise(self):
+        # Удаление шума, спорное решение
+        self.df = self.df.loc[(self.df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
+
     def calculate_points_on_image(self):
         self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
 
@@ -65,9 +69,9 @@ class MapBuilder:
         self.df_points_on_image.course = self.df.course
         self.df_points_on_image.cluster = self.df.cluster
 
-    def show_points(self):
+    def show_points(self, frac=1.0):
         # Снижаю количество отображаемых точек (надо бы найти какой-то нормальный алгоритм)
-        for row in self.df_points_on_image.sample(frac=0.1).itertuples(index=False):
+        for row in self.df_points_on_image.sample(frac=frac).itertuples(index=False):
             if int(row[4]) == -1:
                 red = 0
                 green = 0
@@ -113,7 +117,12 @@ class MapBuilder:
                     # Берем последний элемент массива из-за рассинхронизации со счетчиком i
                     for dot in self.polygon_bounds[-1]:
                         self.context.line_to(dot[0], dot[1])
-                    self.context.fill()
+                    self.context.fill_preserve()
+
+                    # Дополнительно выделяю границу полигона
+                    self.context.set_line_width(1.5)
+                    self.context.set_source_rgba(red, green, blue, 1)
+                    self.context.stroke()
 
     def show_intersections(self):
         # Ищем и отображаем пересечения полигонов
@@ -141,7 +150,6 @@ class MapBuilder:
 
     def show_intersection_bounds_points(self):
         # Накидываем точки на границу пересечения полигонов
-        # Пока что не сохраняю, для какого пересечения и каких кластеров получены точки
         self.intersection_bounds_points = {}
         for key, intersection_bound in self.intersection_bounds.items():
             # Расстояние между точками границы пересечения
@@ -165,12 +173,17 @@ class MapBuilder:
         f.close()
 
     def create_clustered_map(self):
+        # Возможно стоит убрать мелкие кластеры...
+
         self.create_empty_map()
+        # Удаляю шум, не уверен, стоит ли
+        self.delete_noise()
         self.calculate_points_on_image()
         self.show_polygons()
         self.show_intersections()
         self.show_intersection_bounds_points()
-        self.show_points()
+        # frac - можно выбрать, какую долю объектов нанести на карту
+        self.show_points(frac=0.15)
         self.save_clustered_image()
 
     def create_empty_map(self):
