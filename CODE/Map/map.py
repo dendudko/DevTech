@@ -184,6 +184,9 @@ class MapBuilder:
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=0.2)
         self.save_clustered_image()
+        # self.save_count = 0
+        # self.show_points()
+        # self.save_clustered_image()
 
     def create_empty_map(self):
         if self.create_new_empty_map:
