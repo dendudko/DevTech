@@ -93,7 +93,8 @@ class MapBuilder:
             self.context.move_to(row[0], row[1])
             # Не уверен в какую сторону должно быть направление (+90 / -90), надо уточнить
             angle = math.radians(row[3] + 90)
-            self.context.line_to(row[0] + row[2] / 10 * math.cos(angle), row[1] + row[2] / 10 * math.sin(angle))
+            line_length = row[2] / 10
+            self.context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
             self.context.stroke()
 
     def show_polygons(self):
