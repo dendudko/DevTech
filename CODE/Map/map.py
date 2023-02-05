@@ -172,9 +172,8 @@ class MapBuilder:
                 self.map_image.write_to_png(f)
         f.close()
 
+    # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
-        # Возможно стоит убрать мелкие кластеры...
-
         self.create_empty_map()
         # Удаляю шум, не уверен, стоит ли
         self.delete_noise()
@@ -183,7 +182,7 @@ class MapBuilder:
         self.show_intersections()
         self.show_intersection_bounds_points()
         # frac - можно выбрать, какую долю объектов нанести на карту
-        self.show_points(frac=0.15)
+        self.show_points(frac=0.2)
         self.save_clustered_image()
 
     def create_empty_map(self):
