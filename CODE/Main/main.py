@@ -50,7 +50,7 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
     main_log += 'Доля шума: ' + str(df['cluster'].value_counts()[-1]) + ' / ' + str(len(df)) + '\n'
 
     if max(df['cluster']) + 1 <= 147:
-        map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=11, df=df,
+        map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
                                  file_name=f'{file_name}', create_new_empty_map=create_new_empty_map,
                                  save_count=save_count)
         map_builder.create_clustered_map()
