@@ -91,8 +91,8 @@ class MapBuilder:
             # Рисуем линии, отображающие направление, стрелки перегружают картинку, будут просто линии)
             self.context.set_line_width(1.5)
             self.context.move_to(row[0], row[1])
-            # Не уверен в какую сторону должно быть направление (+90 / -90), надо уточнить
-            angle = math.radians(row[3] + 90)
+            # Курс отсчитывается по часовой стрелке от направления на север, движение правостороннее
+            angle = math.radians(row[3] - 90)
             line_length = row[2] / 10
             self.context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
             self.context.stroke()
@@ -184,10 +184,9 @@ class MapBuilder:
         self.show_intersection_bounds_points()
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=0.2)
+        # Задаем номер сохраняемого файла, нужно пока что для отладки
+        # self.save_count = 2
         self.save_clustered_image()
-        # self.save_count = 0
-        # self.show_points()
-        # self.save_clustered_image()
 
     def create_empty_map(self):
         if self.create_new_empty_map:
