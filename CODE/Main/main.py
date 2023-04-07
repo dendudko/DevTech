@@ -4,7 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.utils import parallel_backend
 from LoadData.load_data import load_data
 from Map.map import MapBuilder
-from random import random
+import pickle
 
 
 def custom_dist(a, b, w1, w2, w3):
@@ -19,7 +19,7 @@ def custom_dist(a, b, w1, w2, w3):
     return dist
 
 
-def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, save_count=-1):
+def main(file_name='all_merged', eps=0.3, min_samples=50, nrows=None, create_new_empty_map=False, save_count=-1):
     df = load_data(f'{file_name}.xlsx', 'marine.xlsx', create_new_clean_xlsx=False)
     min_lat = df['lat'].min()
     min_lon = df['lon'].min()
@@ -37,7 +37,7 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
     with parallel_backend('loky', n_jobs=-1):
         # Нашел более правильную реализацию метрики, вроде работает получше и побыстрее
         clusters = DBSCAN(eps=eps, min_samples=min_samples, metric='minkowski', p=2,
-                          metric_params={'w': [2, 2, 1, 10]}).fit_predict(X)
+                          metric_params={'w': [2, 2, 1, 20]}).fit_predict(X)
         # clusters = DBSCAN(eps=eps, min_samples=min_samples, metric=custom_dist,
         #                   metric_params={'w1': 5000, 'w2': 0.033, 'w3': 0.083}).fit_predict(df)
 
@@ -55,6 +55,13 @@ def main(file_name, eps, min_samples, nrows=None, create_new_empty_map=False, sa
                                  save_count=save_count)
         map_builder.create_clustered_map()
 
+        # Обнуляем несериализуемые pickle поля
+        map_builder.map_image = None
+        map_builder.context = None
+        # Сохраняем дамп объекта map_builder
+        with open('map_builder_dump.pickle', 'wb') as dump_file:
+            pickle.dump(map_builder, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
+
     return main_log
 
 
@@ -71,7 +78,7 @@ def run_tests():
     #         log_for_file += log + '\n'
     #         print(log)
 
-    log = main(file_name='all_merged', eps=0.29, min_samples=50, nrows=None)
+    log = main(file_name='all_merged', eps=0.31, min_samples=50, nrows=None)
     log_for_file += log
     print(log)
 
@@ -79,20 +86,12 @@ def run_tests():
     #     f.write(log_for_file)
     #     f.close()
 
-    # 'w' : [2, 2, 1, 10]
-    # eps = 0.27
-    # min_samples = 45
-    # eps = 0.275
-    # min_samples = 45
-    # eps = 0.28
-    # min_samples = 45
-    # eps = 0.29
-    # min_samples = 50
-
-    # 'w' : [2, 2, 1, 4]
-    # eps = 0.321
-    # min_samples = 105
-
 
 if __name__ == "__main__":
-    run_tests()
+    # run_tests()
+
+    # pickle отлично решает задачу сериализации объекта MapBuilder
+    with open('map_builder_dump.pickle', 'rb') as load_file:
+        map_builder_loaded = pickle.load(load_file)
+        map_builder_loaded.create_clustered_map()
+

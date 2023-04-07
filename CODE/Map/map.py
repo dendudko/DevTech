@@ -57,17 +57,18 @@ class MapBuilder:
         self.df = self.df.loc[(self.df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
 
     def calculate_points_on_image(self):
-        self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
+        if len(self.df_points_on_image) == 0:
+            self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
 
-        # Добавляем объекты с пересчитанными координатами в df_points_on_image
-        # gps в web-mercator
-        xy = [mercantile.xy(x, y) for x, y in zip(self.df.lat, self.df.lon)]
-        # переводим x, y в координаты изображения
-        self.df_points_on_image.x = [(row[0] - self.left_top[0]) * self.kx for row in xy]
-        self.df_points_on_image.y = [(row[1] - self.left_top[1]) * self.ky for row in xy]
-        self.df_points_on_image.speed = self.df.speed
-        self.df_points_on_image.course = self.df.course
-        self.df_points_on_image.cluster = self.df.cluster
+            # Добавляем объекты с пересчитанными координатами в df_points_on_image
+            # gps в web-mercator
+            xy = [mercantile.xy(x, y) for x, y in zip(self.df.lat, self.df.lon)]
+            # переводим x, y в координаты изображения
+            self.df_points_on_image.x = [(row[0] - self.left_top[0]) * self.kx for row in xy]
+            self.df_points_on_image.y = [(row[1] - self.left_top[1]) * self.ky for row in xy]
+            self.df_points_on_image.speed = self.df.speed
+            self.df_points_on_image.course = self.df.course
+            self.df_points_on_image.cluster = self.df.cluster
 
     def show_points(self, frac=1.0):
         # Снижаю количество отображаемых точек (надо бы найти какой-то нормальный алгоритм)
@@ -100,23 +101,40 @@ class MapBuilder:
     def show_polygons(self):
         # Создаем и добавляем полигоны
         if 'cluster' in self.df_points_on_image.columns:
-            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
-                self.polygons.append(
-                    self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(how='any'))
-                polygon_geom = shapely.Polygon(
-                    zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
-                # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
-                if isinstance(polygon_geom2, shapely.Polygon):
-                    a, b = polygon_geom2.exterior.coords.xy
-                    self.polygon_bounds.append(tuple(list(zip(a, b))))
+            if len(self.polygons) == 0 or len(self.polygon_bounds) == 0:
+                for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
+                    self.polygons.append(
+                        self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(how='any'))
+                    polygon_geom = shapely.Polygon(
+                        zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
+                    polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
+                    # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
+                    if isinstance(polygon_geom2, shapely.Polygon):
+                        a, b = polygon_geom2.exterior.coords.xy
+                        self.polygon_bounds.append(tuple(list(zip(a, b))))
+                        red = colors[i][0]
+                        green = colors[i][1]
+                        blue = colors[i][2]
+                        alpha = 0.25
+                        self.context.set_source_rgba(red, green, blue, alpha)
+                        # Берем последний элемент массива из-за рассинхронизации со счетчиком i
+                        for dot in self.polygon_bounds[-1]:
+                            self.context.line_to(dot[0], dot[1])
+                        self.context.fill_preserve()
+
+                        # Дополнительно выделяю границу полигона
+                        self.context.set_line_width(1.5)
+                        self.context.set_source_rgba(red, green, blue, 1)
+                        self.context.stroke()
+            else:
+                for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
                     red = colors[i][0]
                     green = colors[i][1]
                     blue = colors[i][2]
                     alpha = 0.25
                     self.context.set_source_rgba(red, green, blue, alpha)
                     # Берем последний элемент массива из-за рассинхронизации со счетчиком i
-                    for dot in self.polygon_bounds[-1]:
+                    for dot in self.polygon_bounds[i]:
                         self.context.line_to(dot[0], dot[1])
                     self.context.fill_preserve()
 
@@ -127,18 +145,19 @@ class MapBuilder:
 
     def show_intersections(self):
         # Ищем и отображаем пересечения полигонов
-        self.intersections = {}
-        self.intersection_bounds = {}
-        for i in range(len(self.polygon_bounds)):
-            for j in range(i + 1, len(self.polygon_bounds)):
-                if shapely.intersects(shapely.Polygon(self.polygon_bounds[i]), shapely.Polygon(self.polygon_bounds[j])):
-                    self.intersections[i, j] = (shapely.intersection(shapely.Polygon(self.polygon_bounds[i]),
-                                                                     shapely.Polygon(self.polygon_bounds[j])))
-        for key, intersection in self.intersections.items():
-            # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
-            if isinstance(intersection, shapely.Polygon):
-                a, b = intersection.exterior.coords.xy
-                self.intersection_bounds[key] = (tuple(list(zip(a, b))))
+        if len(self.intersections) == 0 or len(self.intersection_bounds) == 0:
+            for i in range(len(self.polygon_bounds)):
+                for j in range(i + 1, len(self.polygon_bounds)):
+                    if shapely.intersects(shapely.Polygon(self.polygon_bounds[i]),
+                                          shapely.Polygon(self.polygon_bounds[j])):
+                        self.intersections[i, j] = (shapely.intersection(shapely.Polygon(self.polygon_bounds[i]),
+                                                                         shapely.Polygon(self.polygon_bounds[j])))
+            for key, intersection in self.intersections.items():
+                # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
+                if isinstance(intersection, shapely.Polygon):
+                    a, b = intersection.exterior.coords.xy
+                    self.intersection_bounds[key] = (tuple(list(zip(a, b))))
+
         for key, intersection_bound in self.intersection_bounds.items():
             red = 0
             green = 0
@@ -151,17 +170,23 @@ class MapBuilder:
 
     def show_intersection_bounds_points(self):
         # Накидываем точки на границу пересечения полигонов
-        self.intersection_bounds_points = {}
-        for key, intersection_bound in self.intersection_bounds.items():
-            # Расстояние между точками границы пересечения
-            distance_delta = 5
-            distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
-            self.intersection_bounds_points[key] = (
-                [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
-            for dot in self.intersection_bounds_points[key]:
-                self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                self.context.set_source_rgba(255, 0, 0, 1)
-                self.context.fill()
+        if len(self.intersection_bounds_points) == 0:
+            for key, intersection_bound in self.intersection_bounds.items():
+                # Расстояние между точками границы пересечения
+                distance_delta = 5
+                distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
+                self.intersection_bounds_points[key] = (
+                    [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
+                for dot in self.intersection_bounds_points[key]:
+                    self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                    self.context.set_source_rgba(255, 0, 0, 1)
+                    self.context.fill()
+        else:
+            for key, intersection_bound in self.intersection_bounds.items():
+                for dot in self.intersection_bounds_points[key]:
+                    self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                    self.context.set_source_rgba(255, 0, 0, 1)
+                    self.context.fill()
 
     def save_clustered_image(self):
         if self.save_count != -1:
@@ -173,17 +198,50 @@ class MapBuilder:
                 self.map_image.write_to_png(f)
         f.close()
 
+    def show_average_direction(self):
+        i = 0
+        for polygon_bound in self.polygon_bounds:
+            center = (np.mean(list(zip(*polygon_bound))[0]), np.mean(list(zip(*polygon_bound))[1]))
+            angle = np.mean(self.df_points_on_image['course'].where(self.df_points_on_image['cluster'] == i).dropna(
+                how='any').values)
+
+            arrow_length = 200
+            arrow_angle = math.radians(angle - 90)
+            arrowhead_angle = math.pi / 12
+            arrowhead_length = 30
+
+            self.context.move_to(center[0], center[1])  # move to center of polygon
+
+            self.context.rel_move_to(-arrow_length * math.cos(arrow_angle) / 2,
+                                     -arrow_length * math.sin(arrow_angle) / 2)
+            self.context.rel_line_to(arrow_length * math.cos(arrow_angle), arrow_length * math.sin(arrow_angle))
+            self.context.rel_move_to(-arrowhead_length * math.cos(arrow_angle - arrowhead_angle),
+                                     -arrowhead_length * math.sin(arrow_angle - arrowhead_angle))
+            self.context.rel_line_to(arrowhead_length * math.cos(arrow_angle - arrowhead_angle),
+                                     arrowhead_length * math.sin(arrow_angle - arrowhead_angle))
+            self.context.rel_line_to(-arrowhead_length * math.cos(arrow_angle + arrowhead_angle),
+                                     -arrowhead_length * math.sin(arrow_angle + arrowhead_angle))
+
+            red = colors[i][0]
+            green = colors[i][1]
+            blue = colors[i][2]
+            self.context.set_source_rgba(red, green, blue, 1)
+            self.context.set_line_width(4)
+            self.context.stroke()
+            i += 1
+
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
         self.create_empty_map()
         # Удаляю шум, не уверен, стоит ли
-        self.delete_noise()
+        # self.delete_noise()
         self.calculate_points_on_image()
         self.show_polygons()
         self.show_intersections()
         self.show_intersection_bounds_points()
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=0.2)
+        self.show_average_direction()
         # Задаем номер сохраняемого файла, нужно пока что для отладки
         # self.save_count = 2
         self.save_clustered_image()
@@ -216,6 +274,9 @@ class MapBuilder:
                        'Accept-Language': 'en-US,en;q=0.8',
                        'Connection': 'keep-alive'}
 
+            # i = 0
+            # print(len(tiles))
+            # Не знаю, как оптимизировать
             for t in tiles:
                 server = random.choice(['a', 'b', 'c'])  # у OSM три сервера, распределяем нагрузку
                 url = 'http://{server}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'.format(
@@ -224,7 +285,8 @@ class MapBuilder:
                     x=t.x,
                     y=t.y
                 )
-                # print(url)
+                # i += 1
+                # print(i, url)
                 request = urllib.request.Request(url=url, headers=headers)
                 response = urllib.request.urlopen(request)
 
