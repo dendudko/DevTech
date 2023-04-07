@@ -45,12 +45,14 @@ class MapBuilder:
         self.ky = None
         self.context = None
 
-        self.df_points_on_image = pandas.DataFrame()
+        self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
         self.polygons = []
         self.polygon_bounds = []
         self.intersections = {}
         self.intersection_bounds = {}
         self.intersection_bounds_points = {}
+        self.average_directions = {}
+        self.average_speeds = {}
 
     def delete_noise(self):
         # Удаление шума, спорное решение
@@ -58,8 +60,6 @@ class MapBuilder:
 
     def calculate_points_on_image(self):
         if len(self.df_points_on_image) == 0:
-            self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
-
             # Добавляем объекты с пересчитанными координатами в df_points_on_image
             # gps в web-mercator
             xy = [mercantile.xy(x, y) for x, y in zip(self.df.lat, self.df.lon)]
@@ -112,36 +112,22 @@ class MapBuilder:
                     if isinstance(polygon_geom2, shapely.Polygon):
                         a, b = polygon_geom2.exterior.coords.xy
                         self.polygon_bounds.append(tuple(list(zip(a, b))))
-                        red = colors[i][0]
-                        green = colors[i][1]
-                        blue = colors[i][2]
-                        alpha = 0.25
-                        self.context.set_source_rgba(red, green, blue, alpha)
-                        # Берем последний элемент массива из-за рассинхронизации со счетчиком i
-                        for dot in self.polygon_bounds[-1]:
-                            self.context.line_to(dot[0], dot[1])
-                        self.context.fill_preserve()
 
-                        # Дополнительно выделяю границу полигона
-                        self.context.set_line_width(1.5)
-                        self.context.set_source_rgba(red, green, blue, 1)
-                        self.context.stroke()
-            else:
-                for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
-                    red = colors[i][0]
-                    green = colors[i][1]
-                    blue = colors[i][2]
-                    alpha = 0.25
-                    self.context.set_source_rgba(red, green, blue, alpha)
-                    # Берем последний элемент массива из-за рассинхронизации со счетчиком i
-                    for dot in self.polygon_bounds[i]:
-                        self.context.line_to(dot[0], dot[1])
-                    self.context.fill_preserve()
-
-                    # Дополнительно выделяю границу полигона
-                    self.context.set_line_width(1.5)
-                    self.context.set_source_rgba(red, green, blue, 1)
-                    self.context.stroke()
+            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
+                red = colors[i][0]
+                green = colors[i][1]
+                blue = colors[i][2]
+                alpha = 0.25
+                self.context.set_source_rgba(red, green, blue, alpha)
+                # OLD: Берем последний элемент массива из-за рассинхронизации со счетчиком i
+                # NOW: Берем i полигон, вроде все нормально
+                for dot in self.polygon_bounds[i]:
+                    self.context.line_to(dot[0], dot[1])
+                self.context.fill_preserve()
+                # Дополнительно выделяю границу полигона
+                self.context.set_line_width(1.5)
+                self.context.set_source_rgba(red, green, blue, 1)
+                self.context.stroke()
 
     def show_intersections(self):
         # Ищем и отображаем пересечения полигонов
@@ -177,16 +163,12 @@ class MapBuilder:
                 distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
                 self.intersection_bounds_points[key] = (
                     [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
-                for dot in self.intersection_bounds_points[key]:
-                    self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                    self.context.set_source_rgba(255, 0, 0, 1)
-                    self.context.fill()
-        else:
-            for key, intersection_bound in self.intersection_bounds.items():
-                for dot in self.intersection_bounds_points[key]:
-                    self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                    self.context.set_source_rgba(255, 0, 0, 1)
-                    self.context.fill()
+
+        for key, intersection_bound in self.intersection_bounds.items():
+            for dot in self.intersection_bounds_points[key]:
+                self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                self.context.set_source_rgba(255, 0, 0, 1)
+                self.context.fill()
 
     def save_clustered_image(self):
         if self.save_count != -1:
@@ -198,20 +180,24 @@ class MapBuilder:
                 self.map_image.write_to_png(f)
         f.close()
 
-    def show_average_direction(self):
+    def show_average_directions(self):
         i = 0
-        for polygon_bound in self.polygon_bounds:
-            center = (np.mean(list(zip(*polygon_bound))[0]), np.mean(list(zip(*polygon_bound))[1]))
-            angle = np.mean(self.df_points_on_image['course'].where(self.df_points_on_image['cluster'] == i).dropna(
-                how='any').values)
+        if len(self.average_directions) == 0 or len(self.average_speeds) == 0:
+            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
+                self.average_directions[i] = np.mean(self.df_points_on_image['course'].where(
+                    self.df_points_on_image['cluster'] == i).dropna(how='any').values)
+                self.average_speeds[i] = np.mean(self.df_points_on_image['speed'].where(
+                    self.df_points_on_image['cluster'] == i).dropna(how='any').values)
 
-            arrow_length = 200
-            arrow_angle = math.radians(angle - 90)
+        for polygon_bound in self.polygon_bounds:
+            center = shapely.centroid(shapely.Polygon(polygon_bound))
+
+            arrow_length = self.average_speeds[i]
+            arrow_angle = math.radians(self.average_directions[i] - 90)
             arrowhead_angle = math.pi / 12
             arrowhead_length = 30
 
-            self.context.move_to(center[0], center[1])  # move to center of polygon
-
+            self.context.move_to(center.x, center.y)  # move to center of polygon
             self.context.rel_move_to(-arrow_length * math.cos(arrow_angle) / 2,
                                      -arrow_length * math.sin(arrow_angle) / 2)
             self.context.rel_line_to(arrow_length * math.cos(arrow_angle), arrow_length * math.sin(arrow_angle))
@@ -241,7 +227,7 @@ class MapBuilder:
         self.show_intersection_bounds_points()
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=0.2)
-        self.show_average_direction()
+        self.show_average_directions()
         # Задаем номер сохраняемого файла, нужно пока что для отладки
         # self.save_count = 2
         self.save_clustered_image()

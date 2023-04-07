@@ -94,4 +94,3 @@ if __name__ == "__main__":
     with open('map_builder_dump.pickle', 'rb') as load_file:
         map_builder_loaded = pickle.load(load_file)
         map_builder_loaded.create_clustered_map()
-
