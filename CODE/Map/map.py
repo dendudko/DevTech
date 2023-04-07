@@ -212,7 +212,7 @@ class MapBuilder:
             green = colors[i][1]
             blue = colors[i][2]
             self.context.set_source_rgba(red, green, blue, 1)
-            self.context.set_line_width(4)
+            self.context.set_line_width(10)
             self.context.stroke()
             i += 1
 
