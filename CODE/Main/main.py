@@ -87,9 +87,9 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    run_tests()
+    # run_tests()
 
     # pickle отлично решает задачу сериализации объекта MapBuilder
-    # with open('map_builder_dump.pickle', 'rb') as load_file:
-    #     map_builder_loaded = pickle.load(load_file)
-    #     map_builder_loaded.create_clustered_map()
+    with open('map_builder_dump.pickle', 'rb') as load_file:
+        map_builder_loaded = pickle.load(load_file)
+        map_builder_loaded.create_clustered_map()

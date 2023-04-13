@@ -103,7 +103,8 @@ class MapBuilder:
         self.average_directions = {}
         self.average_speeds = {}
 
-        self.colors = generate_colors(max(df['cluster']) + 1)
+        self.cluster_count = max(df['cluster']) + 1
+        self.colors = generate_colors(self.cluster_count)
 
     def delete_noise(self):
         # Удаление шума, спорное решение
@@ -151,32 +152,31 @@ class MapBuilder:
 
     def show_polygons(self):
         # Создаем и добавляем полигоны
-        if 'cluster' in self.df_points_on_image.columns:
-            if len(self.polygons) == 0 or len(self.polygon_bounds) == 0:
-                for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
-                    self.polygons[i] = self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(
-                        how='any')
-                    polygon_geom = shapely.Polygon(
-                        zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                    polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
-                    # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
-                    if isinstance(polygon_geom2, shapely.Polygon):
-                        a, b = polygon_geom2.exterior.coords.xy
-                        self.polygon_bounds[i] = tuple(list(zip(a, b)))
+        if len(self.polygons) == 0 or len(self.polygon_bounds) == 0:
+            for i in range(self.cluster_count):
+                self.polygons[i] = self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(
+                    how='any')
+                polygon_geom = shapely.Polygon(
+                    zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
+                polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
+                # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
+                if isinstance(polygon_geom2, shapely.Polygon):
+                    a, b = polygon_geom2.exterior.coords.xy
+                    self.polygon_bounds[i] = tuple(list(zip(a, b)))
 
-            for key, polygon_bound in self.polygon_bounds.items():
-                red = self.colors[key][0]
-                green = self.colors[key][1]
-                blue = self.colors[key][2]
-                alpha = 0.25
-                self.context.set_source_rgba(red, green, blue, alpha)
-                for dot in polygon_bound:
-                    self.context.line_to(dot[0], dot[1])
-                self.context.fill_preserve()
-                # Дополнительно выделяю границу полигона
-                self.context.set_line_width(1.5)
-                self.context.set_source_rgba(red, green, blue, 1)
-                self.context.stroke()
+        for key, polygon_bound in self.polygon_bounds.items():
+            red = self.colors[key][0]
+            green = self.colors[key][1]
+            blue = self.colors[key][2]
+            alpha = 0.25
+            self.context.set_source_rgba(red, green, blue, alpha)
+            for dot in polygon_bound:
+                self.context.line_to(dot[0], dot[1])
+            self.context.fill_preserve()
+            # Дополнительно выделяю границу полигона
+            self.context.set_line_width(1.5)
+            self.context.set_source_rgba(red, green, blue, 1)
+            self.context.stroke()
 
     def show_intersections(self):
         # Ищем и отображаем пересечения полигонов
@@ -226,7 +226,7 @@ class MapBuilder:
 
     def show_average_directions(self):
         if len(self.average_directions) == 0 or len(self.average_speeds) == 0:
-            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
+            for i in range(self.cluster_count):
                 self.average_directions[i] = np.mean(self.df_points_on_image['course'].where(
                     self.df_points_on_image['cluster'] == i).dropna(how='any').values)
                 self.average_speeds[i] = np.mean(self.df_points_on_image['speed'].where(
