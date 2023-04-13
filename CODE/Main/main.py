@@ -49,18 +49,17 @@ def main(file_name='all_merged', eps=0.3, min_samples=50, nrows=None, create_new
     main_log += 'Всего кластеров: ' + str(max(df['cluster']) + 1) + '\n'
     main_log += 'Доля шума: ' + str(df['cluster'].value_counts()[-1]) + ' / ' + str(len(df)) + '\n'
 
-    if max(df['cluster']) + 1 <= 147:
-        map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
-                                 file_name=f'{file_name}', create_new_empty_map=create_new_empty_map,
-                                 save_count=save_count)
-        map_builder.create_clustered_map()
+    map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
+                             file_name=f'{file_name}', create_new_empty_map=create_new_empty_map,
+                             save_count=save_count)
+    map_builder.create_clustered_map()
 
-        # Обнуляем несериализуемые pickle поля
-        map_builder.map_image = None
-        map_builder.context = None
-        # Сохраняем дамп объекта map_builder
-        with open('map_builder_dump.pickle', 'wb') as dump_file:
-            pickle.dump(map_builder, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
+    # Обнуляем несериализуемые pickle поля
+    map_builder.map_image = None
+    map_builder.context = None
+    # Сохраняем дамп объекта map_builder
+    with open('map_builder_dump.pickle', 'wb') as dump_file:
+        pickle.dump(map_builder, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     return main_log
 
@@ -78,7 +77,7 @@ def run_tests():
     #         log_for_file += log + '\n'
     #         print(log)
 
-    log = main(file_name='all_merged', eps=0.31, min_samples=50, nrows=None)
+    log = main(file_name='all_merged', eps=0.3, min_samples=50, nrows=None)
     log_for_file += log
     print(log)
 
@@ -88,9 +87,9 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    # run_tests()
+    run_tests()
 
     # pickle отлично решает задачу сериализации объекта MapBuilder
-    with open('map_builder_dump.pickle', 'rb') as load_file:
-        map_builder_loaded = pickle.load(load_file)
-        map_builder_loaded.create_clustered_map()
+    # with open('map_builder_dump.pickle', 'rb') as load_file:
+    #     map_builder_loaded = pickle.load(load_file)
+    #     map_builder_loaded.create_clustered_map()

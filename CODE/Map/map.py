@@ -11,18 +11,67 @@ import shapely
 import numpy as np
 
 
-def get_colors():
-    # тут создаем rgba массив цветов из CSS4 и перемешиваем
-    # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
-    # Удаляю черный
-    css4_colors = list(mcolors.CSS4_COLORS.keys())
-    random.shuffle(css4_colors)
-    css4_colors.remove('black')
-    css4_colors = mcolors.to_rgba_array(css4_colors)
-    return css4_colors
+# def get_colors():
+#     # тут создаем rgba массив цветов из CSS4 и перемешиваем
+#     # ВРЕМЕННОЕ РЕШЕНИЕ, С ЦВЕТАМИ НАДО ЧТО-ТО ПРИДУМАТЬ
+#     # Удаляю черный
+#     css4_colors = list(mcolors.CSS4_COLORS.keys())
+#     random.shuffle(css4_colors)
+#     css4_colors.remove('black')
+#     print(css4_colors)
+#     css4_colors = mcolors.to_rgba_array(css4_colors)
+#     return css4_colors
+#
+#
+# colors = get_colors()
+# print(colors)
 
+# ChatGPT выдал прекрасную генерацию цветов
+def generate_colors(num_colors):
+    colors = []
 
-colors = get_colors()
+    # Golden ratio
+    golden_ratio_conjugate = 0.618033988749895
+    h = 0.0
+
+    for i in range(num_colors):
+        r, g, b = 0, 0, 0
+
+        # HSL to RGB conversion
+        h += golden_ratio_conjugate
+        h %= 1
+
+        hue = 360 * h
+        saturation = 0.6
+        lightness = 0.6
+
+        c = (1 - abs(2 * lightness - 1)) * saturation
+        x = c * (1 - abs((hue / 60) % 2 - 1))
+        m = lightness - c / 2
+
+        if hue < 60:
+            r = c
+            g = x
+        elif hue < 120:
+            r = x
+            g = c
+        elif hue < 180:
+            g = c
+            b = x
+        elif hue < 240:
+            g = x
+            b = c
+        elif hue < 300:
+            r = x
+            b = c
+        else:
+            r = c
+            b = x
+
+        r, g, b = r + m, g + m, b + m
+        colors.append([r, g, b, 1])
+
+    return colors
 
 
 class MapBuilder:
@@ -46,13 +95,15 @@ class MapBuilder:
         self.context = None
 
         self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
-        self.polygons = []
-        self.polygon_bounds = []
+        self.polygons = {}
+        self.polygon_bounds = {}
         self.intersections = {}
         self.intersection_bounds = {}
         self.intersection_bounds_points = {}
         self.average_directions = {}
         self.average_speeds = {}
+
+        self.colors = generate_colors(max(df['cluster']) + 1)
 
     def delete_noise(self):
         # Удаление шума, спорное решение
@@ -80,9 +131,9 @@ class MapBuilder:
                 alpha = 0.25
                 r = 2
             else:
-                red = colors[int(row[4])][0]
-                green = colors[int(row[4])][1]
-                blue = colors[int(row[4])][2]
+                red = self.colors[int(row[4])][0]
+                green = self.colors[int(row[4])][1]
+                blue = self.colors[int(row[4])][2]
                 alpha = 1
                 r = 2
             self.context.arc(row[0], row[1], r, 0 * math.pi / 180, 360 * math.pi / 180)
@@ -103,25 +154,23 @@ class MapBuilder:
         if 'cluster' in self.df_points_on_image.columns:
             if len(self.polygons) == 0 or len(self.polygon_bounds) == 0:
                 for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
-                    self.polygons.append(
-                        self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(how='any'))
+                    self.polygons[i] = self.df_points_on_image.where(self.df_points_on_image['cluster'] == i).dropna(
+                        how='any')
                     polygon_geom = shapely.Polygon(
                         zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
                     polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
                     # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                     if isinstance(polygon_geom2, shapely.Polygon):
                         a, b = polygon_geom2.exterior.coords.xy
-                        self.polygon_bounds.append(tuple(list(zip(a, b))))
+                        self.polygon_bounds[i] = tuple(list(zip(a, b)))
 
-            for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
-                red = colors[i][0]
-                green = colors[i][1]
-                blue = colors[i][2]
+            for key, polygon_bound in self.polygon_bounds.items():
+                red = self.colors[key][0]
+                green = self.colors[key][1]
+                blue = self.colors[key][2]
                 alpha = 0.25
                 self.context.set_source_rgba(red, green, blue, alpha)
-                # OLD: Берем последний элемент массива из-за рассинхронизации со счетчиком i
-                # NOW: Берем i полигон, вроде все нормально
-                for dot in self.polygon_bounds[i]:
+                for dot in polygon_bound:
                     self.context.line_to(dot[0], dot[1])
                 self.context.fill_preserve()
                 # Дополнительно выделяю границу полигона
@@ -132,12 +181,17 @@ class MapBuilder:
     def show_intersections(self):
         # Ищем и отображаем пересечения полигонов
         if len(self.intersections) == 0 or len(self.intersection_bounds) == 0:
-            for i in range(len(self.polygon_bounds)):
-                for j in range(i + 1, len(self.polygon_bounds)):
-                    if shapely.intersects(shapely.Polygon(self.polygon_bounds[i]),
-                                          shapely.Polygon(self.polygon_bounds[j])):
-                        self.intersections[i, j] = (shapely.intersection(shapely.Polygon(self.polygon_bounds[i]),
-                                                                         shapely.Polygon(self.polygon_bounds[j])))
+            keys = list(self.polygon_bounds.keys())
+            for i in range(len(keys)):
+                key_i = keys[i]
+                for j in range(i + 1, len(keys)):
+                    key_j = keys[j]
+                    if shapely.intersects(shapely.Polygon(self.polygon_bounds[key_i]),
+                                          shapely.Polygon(self.polygon_bounds[key_j])):
+                        self.intersections[key_i, key_j] = (
+                            shapely.intersection(shapely.Polygon(self.polygon_bounds[key_i]),
+                                                 shapely.Polygon(self.polygon_bounds[key_j])))
+
             for key, intersection in self.intersections.items():
                 # Проверка, является ли i-ое intersection непустым (экземпляром класса Polygon)
                 if isinstance(intersection, shapely.Polygon):
@@ -170,18 +224,7 @@ class MapBuilder:
                 self.context.set_source_rgba(255, 0, 0, 1)
                 self.context.fill()
 
-    def save_clustered_image(self):
-        if self.save_count != -1:
-            file_name = self.file_name + '_' + str(self.save_count)
-            with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
-                self.map_image.write_to_png(f)
-        else:
-            with open(f'../images/clustered/clustered_{self.file_name}.png', 'wb') as f:
-                self.map_image.write_to_png(f)
-        f.close()
-
     def show_average_directions(self):
-        i = 0
         if len(self.average_directions) == 0 or len(self.average_speeds) == 0:
             for i in range(int(max(self.df_points_on_image['cluster'])) + 1):
                 self.average_directions[i] = np.mean(self.df_points_on_image['course'].where(
@@ -189,11 +232,11 @@ class MapBuilder:
                 self.average_speeds[i] = np.mean(self.df_points_on_image['speed'].where(
                     self.df_points_on_image['cluster'] == i).dropna(how='any').values)
 
-        for polygon_bound in self.polygon_bounds:
+        for key, polygon_bound in self.polygon_bounds.items():
             center = shapely.centroid(shapely.Polygon(polygon_bound))
 
-            arrow_length = self.average_speeds[i]
-            arrow_angle = math.radians(self.average_directions[i] - 90)
+            arrow_length = self.average_speeds[key]
+            arrow_angle = math.radians(self.average_directions[key] - 90)
             arrowhead_angle = math.pi / 12
             arrowhead_length = 30
 
@@ -208,29 +251,22 @@ class MapBuilder:
             self.context.rel_line_to(-arrowhead_length * math.cos(arrow_angle + arrowhead_angle),
                                      -arrowhead_length * math.sin(arrow_angle + arrowhead_angle))
 
-            red = colors[i][0]
-            green = colors[i][1]
-            blue = colors[i][2]
+            red = self.colors[key][0]
+            green = self.colors[key][1]
+            blue = self.colors[key][2]
             self.context.set_source_rgba(red, green, blue, 1)
             self.context.set_line_width(10)
             self.context.stroke()
-            i += 1
 
-    # Возможно стоит убрать мелкие кластеры...
-    def create_clustered_map(self):
-        self.create_empty_map()
-        # Удаляю шум, не уверен, стоит ли
-        # self.delete_noise()
-        self.calculate_points_on_image()
-        self.show_polygons()
-        self.show_intersections()
-        self.show_intersection_bounds_points()
-        # frac - можно выбрать, какую долю объектов нанести на карту
-        self.show_points(frac=0.2)
-        self.show_average_directions()
-        # Задаем номер сохраняемого файла, нужно пока что для отладки
-        # self.save_count = 2
-        self.save_clustered_image()
+    def save_clustered_image(self):
+        if self.save_count != -1:
+            file_name = self.file_name + '_' + str(self.save_count)
+            with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
+                self.map_image.write_to_png(f)
+        else:
+            with open(f'../images/clustered/clustered_{self.file_name}.png', 'wb') as f:
+                self.map_image.write_to_png(f)
+        f.close()
 
     def create_empty_map(self):
         if self.create_new_empty_map:
@@ -336,3 +372,27 @@ class MapBuilder:
                 f.close()
 
         self.context = Context(self.map_image)
+
+    # Возможно стоит убрать мелкие кластеры...
+    def create_clustered_map(self):
+        self.create_empty_map()
+        # Удаляю шум, не уверен, стоит ли
+        # self.delete_noise()
+        self.calculate_points_on_image()
+        self.show_polygons()
+        self.show_intersections()
+        self.show_intersection_bounds_points()
+        # frac - можно выбрать, какую долю объектов нанести на карту
+        self.show_points(frac=1)
+        self.show_average_directions()
+        # Задаем номер сохраняемого файла, нужно пока что для отладки
+        # self.save_count = 2
+        self.save_clustered_image()
+
+        # print(self.polygons.keys())
+        # print(self.polygon_bounds.keys())
+        # print(self.intersections.keys())
+        # print(self.intersection_bounds.keys())
+        # print(self.intersection_bounds_points.keys())
+        # print(self.average_speeds.keys())
+        # print(self.average_directions.keys())
