@@ -158,7 +158,9 @@ class MapBuilder:
                     how='any')
                 polygon_geom = shapely.Polygon(
                     zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                polygon_geom2 = shapely.geometry.LinearRing(polygon_geom.exterior.coords).convex_hull
+                polygon_geom2 = shapely.convex_hull(polygon_geom)
+                # TODO: Минимальная вогнутая оболочка - выглядит правдоподобнее
+                # polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
                 # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
