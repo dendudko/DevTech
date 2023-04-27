@@ -1,0 +1,8 @@
+matplotlib==3.7.1
+mercantile==1.2.1
+mpu==0.23.1
+numpy==1.24.2
+pandas==2.0.0
+pycairo==1.23.0
+scikit_learn==1.2.2
+Shapely==2.0.1
