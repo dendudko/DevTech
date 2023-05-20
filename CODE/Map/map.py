@@ -375,6 +375,54 @@ class MapBuilder:
 
         self.context = Context(self.map_image)
 
+    def build_graph(self, current_point=None):
+        a_point = shapely.Point(4000, 1900)
+        b_point = shapely.Point(3700, 1200)
+        self.context.arc(a_point.x, a_point.y, 20, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(b_point.x, b_point.y, 20, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.set_source_rgba(255, 255, 255, 1)
+        self.context.fill()
+
+        available_points = []
+        available_directions = []
+        for key, polygon_bound in self.polygon_bounds.items():
+            if shapely.contains(shapely.Polygon(polygon_bound), a_point):
+                available_directions.append(self.average_directions[key])
+                for key_1, intersection_bound_points in self.intersection_bounds_points.items():
+                    if key in key_1:
+                        available_points += [point_i for point_i in intersection_bound_points]
+
+        # Угол обзора в градусах и его ширина
+        angle_of_vision = 3
+        visible_points = []
+        # Желаемое направление в градусах
+        for direction in available_directions:
+            angle_center = direction - 90
+            # Определяем границы видимости
+            angle_left = angle_center - angle_of_vision / 2
+            angle_right = angle_center + angle_of_vision / 2
+            # Конвертируем углы в радианы
+            angle_left_rad = math.radians(angle_left)
+            angle_right_rad = math.radians(angle_right)
+            # Точка обзора
+            x0, y0 = a_point.x, a_point.y
+            # Определяем, какие точки видимы при заданном угле обзора
+            for point in available_points:
+                distance = math.sqrt((point.x - x0) ** 2 + (point.y - y0) ** 2)
+                if distance == 0:
+                    continue
+                cos_angle = (point.x - x0) / distance
+                angle = math.acos(cos_angle)
+                if point.y < y0:  # Проверка угла относительно оси x
+                    angle = 2 * math.pi - angle
+                if angle_left_rad <= angle <= angle_right_rad:
+                    visible_points.append(point)
+
+        for visible_point in visible_points:
+            self.context.arc(visible_point.x, visible_point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
+            self.context.set_source_rgba(255, 255, 255, 1)
+            self.context.fill()
+
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
         self.create_empty_map()
@@ -387,6 +435,8 @@ class MapBuilder:
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=1)
         self.show_average_directions()
+
+        self.build_graph()
         # Задаем номер сохраняемого файла, нужно пока что для отладки
         # self.save_count = 2
         self.save_clustered_image()
