@@ -106,6 +106,10 @@ class MapBuilder:
         self.cluster_count = max(df['cluster']) + 1
         self.colors = generate_colors(self.cluster_count)
 
+        self.visible_points = []
+        self.visited_points = []
+        self.routes_counter = 0
+
     def delete_noise(self):
         # Удаление шума, спорное решение
         self.df = self.df.loc[(self.df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
@@ -158,9 +162,9 @@ class MapBuilder:
                     how='any')
                 polygon_geom = shapely.Polygon(
                     zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                polygon_geom2 = shapely.convex_hull(polygon_geom)
+                # polygon_geom2 = shapely.convex_hull(polygon_geom)
                 # TODO: Минимальная вогнутая оболочка - выглядит правдоподобнее
-                # polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
+                polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
                 # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
@@ -211,11 +215,12 @@ class MapBuilder:
             self.context.fill()
 
     def show_intersection_bounds_points(self):
+        self.intersection_bounds_points = {}
         # Накидываем точки на границу пересечения полигонов
         if len(self.intersection_bounds_points) == 0:
             for key, intersection_bound in self.intersection_bounds.items():
                 # Расстояние между точками границы пересечения
-                distance_delta = 5
+                distance_delta = 10
                 distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
                 self.intersection_bounds_points[key] = (
                     [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
@@ -375,53 +380,76 @@ class MapBuilder:
 
         self.context = Context(self.map_image)
 
-    def build_graph(self, current_point=None):
-        a_point = shapely.Point(4000, 1900)
-        b_point = shapely.Point(3700, 1200)
-        self.context.arc(a_point.x, a_point.y, 20, 0 * math.pi / 180, 360 * math.pi / 180)
-        self.context.arc(b_point.x, b_point.y, 20, 0 * math.pi / 180, 360 * math.pi / 180)
-        self.context.set_source_rgba(255, 255, 255, 1)
-        self.context.fill()
+    # TODO: как-то оптимизировать эту функцию...
+    def build_graph(self, current_point=None, end_point=None):
+        # for i in range(30):
+        while self.routes_counter < 5:
+            a_point = current_point
+            b_point = end_point
 
-        available_points = []
-        available_directions = []
-        for key, polygon_bound in self.polygon_bounds.items():
-            if shapely.contains(shapely.Polygon(polygon_bound), a_point):
-                available_directions.append(self.average_directions[key])
-                for key_1, intersection_bound_points in self.intersection_bounds_points.items():
-                    if key in key_1:
-                        available_points += [point_i for point_i in intersection_bound_points]
+            available_points = []
+            available_directions = set()
+            for key, polygon_bound in self.polygon_bounds.items():
+                if shapely.intersects(shapely.Polygon(polygon_bound).buffer(1e-9), a_point):
+                    available_directions.add(self.average_directions[key])
+                    if shapely.intersects(shapely.Polygon(polygon_bound).buffer(1e-9), b_point):
+                        available_points.append(b_point)
+                    for key_1, intersection_bound_points in self.intersection_bounds_points.items():
+                        if key in key_1:
+                            available_points += [point_i for point_i in intersection_bound_points]
+                        if a_point in intersection_bound_points:
+                            available_directions.add(self.average_directions[key_1[0]])
+                            available_directions.add(self.average_directions[key_1[1]])
 
-        # Угол обзора в градусах и его ширина
-        angle_of_vision = 3
-        visible_points = []
-        # Желаемое направление в градусах
-        for direction in available_directions:
-            angle_center = direction - 90
-            # Определяем границы видимости
-            angle_left = angle_center - angle_of_vision / 2
-            angle_right = angle_center + angle_of_vision / 2
-            # Конвертируем углы в радианы
-            angle_left_rad = math.radians(angle_left)
-            angle_right_rad = math.radians(angle_right)
-            # Точка обзора
-            x0, y0 = a_point.x, a_point.y
-            # Определяем, какие точки видимы при заданном угле обзора
-            for point in available_points:
-                distance = math.sqrt((point.x - x0) ** 2 + (point.y - y0) ** 2)
-                if distance == 0:
-                    continue
-                cos_angle = (point.x - x0) / distance
-                angle = math.acos(cos_angle)
-                if point.y < y0:  # Проверка угла относительно оси x
-                    angle = 2 * math.pi - angle
-                if angle_left_rad <= angle <= angle_right_rad:
-                    visible_points.append(point)
+            # Угол обзора в градусах и его ширина
+            angle_of_vision = 10
+            visible_points_local = []
 
-        for visible_point in visible_points:
-            self.context.arc(visible_point.x, visible_point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
-            self.context.set_source_rgba(255, 255, 255, 1)
-            self.context.fill()
+            for direction in available_directions:
+                angle_center = direction - 90
+                # Определяем границы видимости
+                angle_left = angle_center - angle_of_vision / 2
+                angle_right = angle_center + angle_of_vision / 2
+                # Конвертируем углы в радианы
+                angle_left_rad = math.radians(angle_left)
+                angle_right_rad = math.radians(angle_right)
+                # Точка обзора
+                x0, y0 = a_point.x, a_point.y
+                # Определяем, какие точки видимы при заданном угле обзора
+                for point in available_points:
+                    distance = math.sqrt((point.x - x0) ** 2 + (point.y - y0) ** 2)
+                    if distance == 0:
+                        continue
+                    cos_angle = (point.x - x0) / distance
+                    angle = math.acos(cos_angle)
+                    if point.y < y0:  # Проверка угла относительно оси x
+                        angle = 2 * math.pi - angle
+                    if angle_left_rad <= angle <= angle_right_rad:
+                        visible_points_local.append(point)
+
+            for visible_point in visible_points_local:
+                self.context.set_source_rgba(255, 255, 255, 1)
+                self.context.set_line_width(0.3)
+                self.context.move_to(a_point.x, a_point.y)
+                self.context.line_to(visible_point.x, visible_point.y)
+                self.context.stroke()
+
+            if b_point in visible_points_local:
+                self.routes_counter += 1
+                print('Попали!))))))')
+                self.context.set_source_rgba(0, 255, 0, 1)
+                self.context.set_line_width(2)
+                self.context.move_to(a_point.x, a_point.y)
+                self.context.line_to(b_point.x, b_point.y)
+                self.context.stroke()
+
+            self.visible_points += [point_i for point_i in visible_points_local if
+                                    point_i not in self.visible_points and point_i not in self.visited_points]
+            if len(self.visible_points) != 0:
+                current_point = self.visible_points.pop(-1)
+                self.visited_points.append(current_point)
+                print(len(self.visible_points))
+                print(len(self.visited_points))
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
@@ -436,7 +464,19 @@ class MapBuilder:
         self.show_points(frac=1)
         self.show_average_directions()
 
-        self.build_graph()
+        self.visible_points = []
+        self.visited_points = []
+        self.routes_counter = 0
+        self.build_graph(shapely.Point(4500, 1450), shapely.Point(3700, 1200))
+        for point in self.visited_points:
+            self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
+            self.context.set_source_rgba(0, 255, 0, 1)
+            self.context.fill()
+        self.context.set_source_rgba(0, 0, 0, 1)
+        self.context.arc(4500, 1450, 10, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(3700, 1200, 10, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.fill()
+        print(self.routes_counter)
         # Задаем номер сохраняемого файла, нужно пока что для отладки
         # self.save_count = 2
         self.save_clustered_image()

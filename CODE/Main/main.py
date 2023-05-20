@@ -93,3 +93,10 @@ if __name__ == "__main__":
     with open('map_builder_dump.pickle', 'rb') as load_file:
         map_builder_loaded = pickle.load(load_file)
         map_builder_loaded.create_clustered_map()
+    # Обнуляем несериализуемые pickle поля
+    map_builder_loaded.map_image = None
+    map_builder_loaded.context = None
+    # Сохраняем дамп объекта map_builder
+    with open('map_builder_dump.pickle', 'wb') as dump_file:
+        pickle.dump(map_builder_loaded, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
+
