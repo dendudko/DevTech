@@ -64,7 +64,7 @@ def main(file_name='all_merged', eps=0.3, min_samples=50, nrows=None, create_new
     return main_log
 
 
-def run_tests():
+def run_all():
     log_for_file = ''
     # for i in range(7):
     #     for j in range(5):
@@ -77,7 +77,7 @@ def run_tests():
     #         log_for_file += log + '\n'
     #         print(log)
 
-    log = main(file_name='all_merged', eps=0.3, min_samples=50, nrows=None)
+    log = main(file_name='all_merged', eps=0.29, min_samples=50, nrows=None)
     log_for_file += log
     print(log)
 
@@ -87,16 +87,10 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    # run_tests()
+    # run_all()
 
     # pickle отлично решает задачу сериализации объекта MapBuilder
     with open('map_builder_dump.pickle', 'rb') as load_file:
         map_builder_loaded = pickle.load(load_file)
         map_builder_loaded.create_clustered_map()
-    # Обнуляем несериализуемые pickle поля
-    map_builder_loaded.map_image = None
-    map_builder_loaded.context = None
-    # Сохраняем дамп объекта map_builder
-    with open('map_builder_dump.pickle', 'wb') as dump_file:
-        pickle.dump(map_builder_loaded, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
 

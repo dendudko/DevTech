@@ -99,7 +99,7 @@ class MapBuilder:
         self.polygon_bounds = {}
         self.intersections = {}
         self.intersection_bounds = {}
-        self.intersection_bounds_points = {}
+        self.intersection_points = {}
         self.average_directions = {}
         self.average_speeds = {}
 
@@ -214,19 +214,43 @@ class MapBuilder:
                 self.context.line_to(dot[0], dot[1])
             self.context.fill()
 
-    def show_intersection_bounds_points(self):
-        self.intersection_bounds_points = {}
+    def show_intersection_points(self):
+        self.intersection_points = {}
+        # Расстояние между точками границы пересечения
+        distance_delta = 50
+        # Если не добавляем точки внутрь пересечений
+        # distance_delta = 5
         # Накидываем точки на границу пересечения полигонов
-        if len(self.intersection_bounds_points) == 0:
+        if len(self.intersection_points) == 0:
             for key, intersection_bound in self.intersection_bounds.items():
-                # Расстояние между точками границы пересечения
-                distance_delta = 10
                 distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
-                self.intersection_bounds_points[key] = (
+                self.intersection_points[key] = (
                     [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
 
+            # Добавляем точки внутрь полигонов
+            for key in self.intersection_bounds.keys():
+                x_min, y_min, x_max, y_max = self.intersections[key].bounds
+                # min_num_points = 10
+                # delta = min((x_max - x_min) / min_num_points, (y_max - y_min) / min_num_points)
+
+                current_y = y_min - distance_delta
+                calculated_points = []
+                while current_y <= y_max:
+                    current_y += distance_delta
+                    current_x = x_min - distance_delta
+                    while current_x <= x_max:
+                        current_x += distance_delta
+                        calculated_points.append(shapely.Point(current_x, current_y))
+                # for i in range(100):
+                #     calculated_points.append(shapely.Point(random.randint(int(x_min), int(x_max)), random.randint(int(y_min), int(y_max))))
+                calculated_multi_point = shapely.MultiPoint(calculated_points)
+                actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
+                if isinstance(actual_multi_point, shapely.MultiPoint):
+                    actual_multi_point = actual_multi_point.geoms
+                    self.intersection_points[key] += actual_multi_point
+
         for key, intersection_bound in self.intersection_bounds.items():
-            for dot in self.intersection_bounds_points[key]:
+            for dot in self.intersection_points[key]:
                 self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
                 self.context.set_source_rgba(255, 0, 0, 1)
                 self.context.fill()
@@ -382,74 +406,155 @@ class MapBuilder:
 
     # TODO: как-то оптимизировать эту функцию...
     def build_graph(self, current_point=None, end_point=None):
-        # for i in range(30):
-        while self.routes_counter < 5:
-            a_point = current_point
-            b_point = end_point
+        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
+                           self.polygon_bounds.items()}
+        # Угол обзора в градусах
+        angle_of_vision = 2
 
+        # Ищем точки с прямым доступом в точку Б
+        interesting_points = []
+        interesting_directions = {}
+        really_interesting_points = []
+        for key in self.polygon_bounds.keys():
+            if shapely.intersects(polygon_buffers[key], end_point):
+                interesting_directions[key] = self.average_directions[key]
+        # Здесь добавляем в interesting_points все возможные точки из пересечений, чтобы ничего не пропустить...
+        for key_intersection, intersection_bound_points in self.intersection_points.items():
+            interesting_points.extend(intersection_bound_points)
+
+        angles = {}
+        # Определяем углы до точек
+        for point in interesting_points:
+            dx, dy = point.x - end_point.x, point.y - end_point.y
+            angles[point] = (math.atan2(dy, dx) + 2 * math.pi) % (math.pi * 2)
+
+        for key, direction in interesting_directions.items():
+            angle_center = (direction - 90 - 180 + 360) % 360
+            # Определяем границы видимости
+            angle_left = angle_center - angle_of_vision / 2
+            angle_right = angle_center + angle_of_vision / 2
+            # Конвертируем углы в радианы
+            angle_left_rad = math.radians(angle_left)
+            angle_right_rad = math.radians(angle_right)
+
+            # Отрисовка границ угла обзора
+            self.context.set_source_rgba(255, 255, 255, 1)
+            self.context.set_line_width(2)
+            self.context.move_to(end_point.x, end_point.y)
+            self.context.line_to(end_point.x + math.cos(angle_left_rad) * 1000,
+                                 end_point.y + math.sin(angle_left_rad) * 1000)
+            self.context.move_to(end_point.x, end_point.y)
+            self.context.line_to(end_point.x + math.cos(angle_right_rad) * 1000,
+                                 end_point.y + math.sin(angle_right_rad) * 1000)
+            self.context.stroke()
+
+            for point, angle in angles.items():
+                if shapely.intersects(polygon_buffers[key], point):
+                    if angle_left_rad <= angle <= angle_right_rad:
+                        really_interesting_points.append(point)
+
+        for point in really_interesting_points:
+            self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
+            self.context.set_source_rgba(0, 255, 255, 1)
+            self.context.fill()
+        print('Всего завершающих точек:', len(really_interesting_points))
+
+        # Ищем видимые точки для текущей
+        # for i in range(1):
+        len_really_interesting_points = len(really_interesting_points)
+        while len(self.visited_points) < 200:
             available_points = []
-            available_directions = set()
-            for key, polygon_bound in self.polygon_bounds.items():
-                if shapely.intersects(shapely.Polygon(polygon_bound).buffer(1e-9), a_point):
-                    available_directions.add(self.average_directions[key])
-                    if shapely.intersects(shapely.Polygon(polygon_bound).buffer(1e-9), b_point):
-                        available_points.append(b_point)
-                    for key_1, intersection_bound_points in self.intersection_bounds_points.items():
-                        if key in key_1:
-                            available_points += [point_i for point_i in intersection_bound_points]
-                        if a_point in intersection_bound_points:
-                            available_directions.add(self.average_directions[key_1[0]])
-                            available_directions.add(self.average_directions[key_1[1]])
+            available_directions = {}
+            for key in self.polygon_bounds.keys():
+                if shapely.intersects(polygon_buffers[key], current_point):
+                    available_directions[key] = self.average_directions[key]
+                    if shapely.intersects(polygon_buffers[key], end_point):
+                        available_points.append(end_point)
+            # Здесь добавляем в available_points все возможные точки из пересечений, чтобы ничего не пропустить...
+            # Если delta большая - работает достаточно быстро
+            for key_intersection, intersection_bound_points in self.intersection_points.items():
+                available_points.extend(intersection_bound_points)
 
-            # Угол обзора в градусах и его ширина
-            angle_of_vision = 10
             visible_points_local = []
+            # Точка обзора
+            x0, y0 = current_point.x, current_point.y
+            angles = {}
+            # Определяем углы до точек
+            for point in available_points:
+                dx, dy = point.x - x0, point.y - y0
+                angles[point] = (math.atan2(dy, dx) + 2 * math.pi) % (math.pi * 2)
 
-            for direction in available_directions:
-                angle_center = direction - 90
+            # diff_angles = {}
+            for key, direction in available_directions.items():
+                angle_center = (direction - 90 + 360) % 360
                 # Определяем границы видимости
                 angle_left = angle_center - angle_of_vision / 2
                 angle_right = angle_center + angle_of_vision / 2
                 # Конвертируем углы в радианы
+                # angle_center_rad = math.radians(angle_center)
                 angle_left_rad = math.radians(angle_left)
                 angle_right_rad = math.radians(angle_right)
-                # Точка обзора
-                x0, y0 = a_point.x, a_point.y
-                # Определяем, какие точки видимы при заданном угле обзора
-                for point in available_points:
-                    distance = math.sqrt((point.x - x0) ** 2 + (point.y - y0) ** 2)
-                    if distance == 0:
-                        continue
-                    cos_angle = (point.x - x0) / distance
-                    angle = math.acos(cos_angle)
-                    if point.y < y0:  # Проверка угла относительно оси x
-                        angle = 2 * math.pi - angle
-                    if angle_left_rad <= angle <= angle_right_rad:
-                        visible_points_local.append(point)
+
+                # # Отрисовка границ угла обзора
+                # self.context.set_source_rgba(255, 255, 255, 1)
+                # self.context.set_line_width(2)
+                # self.context.move_to(current_point.x, current_point.y)
+                # self.context.line_to(current_point.x + math.cos(angle_left_rad) * 1000,
+                #                      current_point.y + math.sin(angle_left_rad) * 1000)
+                # self.context.move_to(current_point.x, current_point.y)
+                # self.context.line_to(current_point.x + math.cos(angle_right_rad) * 1000,
+                #                      current_point.y + math.sin(angle_right_rad) * 1000)
+                # self.context.stroke()
+
+                for point, angle in angles.items():
+                    if shapely.intersects(polygon_buffers[key], point):
+                        if angle_left_rad <= angle <= angle_right_rad:
+                            visible_points_local.append(point)
+                            # diff_angles[key] = {}
+                            # diff_angles[key][point] = abs(abs(angle_center_rad) - abs(angle))
+
+            # # Берем лучшие точки
+            # diff_angles = {k: {v: v1} for k, v, v1 in sorted(diff_angles.items(), key=lambda item: item[1])}
+            # visible_points_local = list(diff_angles.keys())[:50]
 
             for visible_point in visible_points_local:
                 self.context.set_source_rgba(255, 255, 255, 1)
                 self.context.set_line_width(0.3)
-                self.context.move_to(a_point.x, a_point.y)
+                self.context.move_to(current_point.x, current_point.y)
                 self.context.line_to(visible_point.x, visible_point.y)
                 self.context.stroke()
 
-            if b_point in visible_points_local:
+            if end_point in visible_points_local:
                 self.routes_counter += 1
                 print('Попали!))))))')
                 self.context.set_source_rgba(0, 255, 0, 1)
                 self.context.set_line_width(2)
-                self.context.move_to(a_point.x, a_point.y)
-                self.context.line_to(b_point.x, b_point.y)
+                self.context.move_to(current_point.x, current_point.y)
+                self.context.line_to(end_point.x, end_point.y)
                 self.context.stroke()
 
-            self.visible_points += [point_i for point_i in visible_points_local if
-                                    point_i not in self.visible_points and point_i not in self.visited_points]
+            self.visible_points.extend(visible_points_local)
+            without_visited_points = set(self.visible_points)
+            without_visited_points.difference_update(set(self.visited_points))
+            self.visible_points = list(without_visited_points)
             if len(self.visible_points) != 0:
-                current_point = self.visible_points.pop(-1)
+                # Рандомайзер значительно сокращает время поиска конечных маршрутов
+                # Даю приоритет точкам, лежащим в одном из полигонов конечной точки
+                really_interesting_points_local = list(set(really_interesting_points).intersection(self.visible_points))
+                if len(really_interesting_points_local) != 0:
+                    current_point = really_interesting_points_local.pop(
+                        random.randrange(len(really_interesting_points_local)))
+                    self.visible_points.remove(current_point)
+                    really_interesting_points.remove(current_point)
+                    print(really_interesting_points)
+                else:
+                    current_point = self.visible_points.pop(random.randrange(len(self.visible_points)))
+                # current_point = self.visible_points.pop(0)
                 self.visited_points.append(current_point)
                 print(len(self.visible_points))
                 print(len(self.visited_points))
+                if len(self.visible_points) == 0:
+                    self.routes_counter = 404040404
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
@@ -459,7 +564,7 @@ class MapBuilder:
         self.calculate_points_on_image()
         self.show_polygons()
         self.show_intersections()
-        self.show_intersection_bounds_points()
+        self.show_intersection_points()
         # frac - можно выбрать, какую долю объектов нанести на карту
         self.show_points(frac=1)
         self.show_average_directions()
