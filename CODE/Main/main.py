@@ -100,4 +100,3 @@ if __name__ == "__main__":
     # Сохраняем дамп объекта map_builder
     with open('map_builder_dump.pickle', 'wb') as dump_file:
         pickle.dump(map_builder_loaded, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
-
