@@ -580,13 +580,14 @@ class MapBuilder:
             if end_point_saved:
                 end_point = end_point_saved
             # Удаление тупиковых узлов (непосещенных точек)
-            extra_nodes = []
-            if len(self.graph.edges) > 1:
-                for node in self.graph.nodes:
-                    if len(self.graph.out_edges(node)) == 0 and node != end_point and \
-                            len(self.graph.in_edges(node)) == 0 and node != start_point:
-                        extra_nodes.append(node)
-                self.graph.remove_nodes_from(extra_nodes)
+            # Не следует применять на заранее отстроенном графе
+            # extra_nodes = []
+            # if len(self.graph.edges) > 1:
+            #     for node in self.graph.nodes:
+            #         if len(self.graph.out_edges(node)) == 0 and node != end_point or \
+            #                 len(self.graph.in_edges(node)) == 0 and node != start_point:
+            #             extra_nodes.append(node)
+            #     self.graph.remove_nodes_from(extra_nodes)
 
         # Отрисовка графа
         # self.context.set_line_width(0.5)
