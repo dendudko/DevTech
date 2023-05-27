@@ -406,11 +406,6 @@ class MapBuilder:
         available_points = []
         for key_intersection, intersection_bound_points in self.intersection_points.items():
             available_points.extend(intersection_bound_points)
-        available_points.append(start_point)
-        available_points.append(end_point)
-
-        self.graph.add_node(start_point)
-        self.graph.add_node(end_point)
 
         polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
                            self.polygon_bounds.items()}
@@ -436,6 +431,11 @@ class MapBuilder:
             self.graph.add_edge(nearest_point, end_point, weight=0)
             end_point_saved = end_point
             end_point = nearest_point
+
+        available_points.append(start_point)
+        available_points.append(end_point)
+        self.graph.add_node(start_point)
+        self.graph.add_node(end_point)
 
         # Угол обзора в градусах
         angle_of_vision = self.graph_params['angle_of_vision']

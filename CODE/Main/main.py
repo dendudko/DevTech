@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
             if find_path:
                 if map_builder_loaded.graph_params == graph_params:
-                    map_builder_loaded.find_path(3500, 1000, 4000, 1200, create_new_graph=False)
+                    map_builder_loaded.find_path(3750, 2500, 4000, 1200, create_new_graph=False)
                 else:
                     map_builder_loaded.graph_params = graph_params
                     map_builder_loaded.find_path(3500, 1500, 4000, 1200, create_new_graph=True)
