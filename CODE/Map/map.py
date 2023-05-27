@@ -3,7 +3,7 @@ import urllib.request
 import random
 
 import pandas
-from cairo import ImageSurface, FORMAT_ARGB32, Context
+from cairo import ImageSurface, FORMAT_ARGB32, Context, LINE_JOIN_ROUND
 import math
 import mercantile
 import shapely
@@ -54,8 +54,7 @@ def generate_colors(num_colors):
 
 
 class MapBuilder:
-    def __init__(self, west, south, east, north, zoom, df, file_name, clustering_params, graph_params,
-                 create_new_empty_map=False, save_count=-1):
+    def __init__(self, west, south, east, north, zoom, df, file_name, create_new_empty_map=False, save_count=-1):
         # Задаваемые параметры
         self.west = west
         self.south = south
@@ -67,10 +66,8 @@ class MapBuilder:
         self.create_new_empty_map = create_new_empty_map
         self.save_mode = save_count
 
-        if clustering_params is not None:
-            self.clustering_params = clustering_params
-        if graph_params is not None:
-            self.graph_params = graph_params
+        self.clustering_params = None
+        self.graph_params = None
 
         # Местные поля
         self.map_image = None
@@ -220,19 +217,18 @@ class MapBuilder:
                     while current_x <= x_max:
                         current_x += distance_delta
                         calculated_points.append(shapely.Point(current_x, current_y))
-                # for i in range(100):
-                #     calculated_points.append(shapely.Point(random.randint(int(x_min), int(x_max)), random.randint(int(y_min), int(y_max))))
                 calculated_multi_point = shapely.MultiPoint(calculated_points)
                 actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
                 if isinstance(actual_multi_point, shapely.MultiPoint):
                     actual_multi_point = actual_multi_point.geoms
                     self.intersection_points[key] += actual_multi_point
 
-        for key, intersection_bound in self.intersection_bounds.items():
+        for key in self.intersection_bounds.keys():
             for dot in self.intersection_points[key]:
+                self.context.set_line_width(2)
                 self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                self.context.set_source_rgba(255, 0, 0, 1)
-                self.context.fill()
+                self.context.set_source_rgba(0, 255, 255, 0.8)
+                self.context.stroke()
 
     def show_average_directions(self):
         if len(self.average_directions) == 0 or len(self.average_speeds) == 0:
@@ -269,13 +265,9 @@ class MapBuilder:
             self.context.stroke()
 
     def save_clustered_image(self):
-        if self.save_mode != -1:
-            file_name = self.file_name + '_' + str(self.save_mode)
-            with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
-                self.map_image.write_to_png(f)
-        else:
-            with open(f'../images/clustered/clustered_{self.file_name}.png', 'wb') as f:
-                self.map_image.write_to_png(f)
+        file_name = self.file_name + '_' + str(self.save_mode)
+        with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
+            self.map_image.write_to_png(f)
         f.close()
 
     def create_empty_map(self):
@@ -375,11 +367,30 @@ class MapBuilder:
         self.kx = self.map_image.get_width() / (right_bottom[0] - self.left_top[0])
         self.ky = self.map_image.get_height() / (right_bottom[1] - self.left_top[1])
 
-        # сохраняем результат
+        # Сохраняем результат
         if self.create_new_empty_map:
             with open(f'../images/clean/{self.file_name}.png', 'wb') as f:
                 self.map_image.write_to_png(f)
                 f.close()
+
+        self.context = Context(self.map_image)
+        if self.create_new_empty_map:
+            # Отображаем точки
+            for row in self.df_points_on_image.itertuples(index=False):
+                self.context.arc(row[0], row[1], 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                self.context.set_source_rgba(255, 0, 0, 0.7)
+                self.context.fill()
+                # Рисуем линии, отображающие направление, стрелки перегружают картинку, будут просто линии)
+                self.context.set_line_width(1.5)
+                self.context.move_to(row[0], row[1])
+                # Курс отсчитывается по часовой стрелке от направления на север, движение правостороннее
+                angle = math.radians(row[3] - 90)
+                line_length = row[2] / 10
+                self.context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
+                self.context.stroke()
+            # Сохраняем результат
+            with open(f'../images/clean/{self.file_name}_with_points.png', 'wb') as f:
+                self.map_image.write_to_png(f)
 
         self.context = Context(self.map_image)
 
@@ -472,11 +483,11 @@ class MapBuilder:
             for point in current_angles_keys:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     really_interesting_points.append(point)
-                    # Вес = sqrt(((расстояние в пикселях / скорость * 0.1 (получается в узлах)) * вес времени) ** 2 +
+                    # Вес = sqrt(((расстояние в пикселях / скорость (в узлах * 10)) * вес времени) ** 2 +
                     # + (разница направлений * вес направления) ** 2)
                     weight = math.sqrt(
                         ((math.hypot(point.x - end_point.x, point.y - end_point.y) /
-                          (self.average_speeds[key] * 0.1)) * self.graph_params['weight_time_graph']) ** 2 +
+                          self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
                         (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
                     self.graph.add_edge(point, end_point, weight=weight)
 
@@ -521,11 +532,11 @@ class MapBuilder:
                         continue
                     for point in current_angles_keys:
                         if angle_left_rad <= angles[point] <= angle_right_rad:
-                            # Вес = sqrt(((расстояние в пикселях / скорость * 0.1 (получается в узлах)) * вес времени) ** 2 +
+                            # Вес = sqrt(((расстояние в пикселях / скорость (в узлах * 10) * вес времени) ** 2 +
                             # + (разница направлений * вес направления) ** 2)
                             weight = math.sqrt(
                                 ((math.hypot(current_point.x - point.x, current_point.y - point.y) /
-                                  (self.average_speeds[key] * 0.1)) * self.graph_params['weight_time_graph']) ** 2 +
+                                  self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
                                 (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
                             self.graph.add_edge(current_point, point, weight=weight)
 
@@ -561,8 +572,16 @@ class MapBuilder:
         # Вызов A* и отрисовка пути
         try:
             path = networkx.astar_path(self.graph, start_point, end_point)
-            self.context.set_line_width(4)
-            self.context.set_source_rgba(0, 0, 0, 1)
+            # Отрисовка черной линии
+            self.context.set_line_join(LINE_JOIN_ROUND)
+            self.context.set_line_width(12)
+            self.context.set_source_rgba(0, 0, 0, 0.4)
+            for node in path:
+                self.context.line_to(node.x, node.y)
+            self.context.stroke()
+            # Отрисовка на черной линии зеленой
+            self.context.set_line_width(10)
+            self.context.set_source_rgba(0, 255, 0, 1)
             for node in path:
                 self.context.line_to(node.x, node.y)
             self.context.stroke()
@@ -576,17 +595,19 @@ class MapBuilder:
             if create_new_graph:
                 self.graph = networkx.DiGraph()
 
-        # Отрисовка узлов, выделение точек начала и конца
-        self.context.set_line_width(2)
-        self.context.set_source_rgba(0, 0, 0, 1)
-        self.context.arc(start_point.x, start_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
-        self.context.arc(end_point.x, end_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
+        # Выделение точек начала и конца
+        self.context.set_line_width(0)
+        self.context.set_source_rgba(255, 255, 255, 1)
+        self.context.arc(start_point.x, start_point.y, 5.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(end_point.x, end_point.y, 5.5, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
-        for node in self.graph.nodes:
-            self.context.arc(node.x, node.y, 3, 0 * math.pi / 180, 360 * math.pi / 180)
-            self.context.set_source_rgba(0, 255, 255, 1)
-            self.context.stroke()
-        # Удаляем начальный и конечный узлы, чтобы в графе не копился мусор...
+        self.context.set_source_rgba(255, 0, 0, 1)
+        self.context.arc(start_point.x, start_point.y, 3.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.fill()
+        self.context.set_source_rgba(0, 0, 0, 1)
+        self.context.arc(end_point.x, end_point.y, 3.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.fill()
+        # Удаляем начальный и конечный узлы, чтобы в графе не копился мусор
         self.graph.remove_node(start_point)
         self.graph.remove_node(end_point)
         # Отображение букв для начальной и конечной точек
@@ -599,18 +620,20 @@ class MapBuilder:
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
-        self.create_empty_map()
         # Удаляю шум, не уверен, стоит ли
         # self.delete_noise()
-        self.calculate_points_on_image()
-        self.show_polygons()
-        self.show_intersections()
-        self.show_intersection_points()
-        # frac - можно выбрать, какую долю объектов нанести на карту
-        self.show_points(frac=1)
-        self.show_average_directions()
-        self.save_mode = 'clusters'
-        self.save_clustered_image()
+        for save_mode in 'clusters', 'polygons':
+            self.calculate_points_on_image()
+            self.create_empty_map()
+            self.show_polygons()
+            self.show_intersections()
+            # frac - можно выбрать, какую долю объектов нанести на карту
+            if save_mode == 'clusters':
+                self.show_points(frac=1)
+            self.show_average_directions()
+            self.show_intersection_points()
+            self.save_mode = save_mode
+            self.save_clustered_image()
 
         # Перевод координат изображения в координаты веб-меркатора
         # lat = self.left_top[0] + 3500 / self.kx
@@ -618,12 +641,12 @@ class MapBuilder:
         # print(lon, lat)
 
     def find_path(self, x_start, y_start, x_end, y_end, create_new_graph):
-        self.create_empty_map()
         self.calculate_points_on_image()
+        self.create_empty_map()
         self.show_polygons()
         self.show_intersections()
-        self.show_intersection_points()
         self.show_average_directions()
+        self.show_intersection_points()
         self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
                          create_new_graph=create_new_graph)
         self.save_mode = 'path'

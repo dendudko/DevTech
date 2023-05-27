@@ -7,7 +7,7 @@ from Map.map import MapBuilder
 import pickle
 
 
-def clustering(clustering_params, graph_params, file_name='all_merged', create_new_empty_map=False):
+def clustering(clustering_params, file_name='all_merged', create_new_empty_map=False):
     weight_distance = clustering_params['weight_distance']
     weight_speed = clustering_params['weight_speed']
     weight_course = clustering_params['weight_course']
@@ -41,8 +41,7 @@ def clustering(clustering_params, graph_params, file_name='all_merged', create_n
     print(main_log)
 
     map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
-                             clustering_params=clustering_params, graph_params=graph_params, file_name=f'{file_name}',
-                             create_new_empty_map=create_new_empty_map)
+                             file_name=f'{file_name}', create_new_empty_map=create_new_empty_map)
     map_builder.create_clustered_map()
 
     # Обнуляем несериализуемые pickle поля
@@ -59,7 +58,7 @@ if __name__ == "__main__":
     # clustering_params = None
     # graph_params = None
     clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29, 'min_samples': 50}
-    graph_params = {'distance_delta': 50, 'angle_of_vision': 15, 'weight_time_graph': 10, 'weight_course_graph': 40}
+    graph_params = {'distance_delta': 100, 'angle_of_vision': 15, 'weight_time_graph': 1, 'weight_course_graph': 25}
     find_path = True
 
     # pickle отлично решает задачу сериализации объекта MapBuilder
@@ -67,22 +66,26 @@ if __name__ == "__main__":
         with open('map_builder_dump.pickle', 'rb') as load_file:
             map_builder_loaded = pickle.load(load_file)
 
-            if map_builder_loaded.clustering_params == clustering_params or clustering_params is None:
+            if map_builder_loaded.clustering_params == clustering_params:
                 map_builder_loaded.create_clustered_map()
             else:
-                clustering(clustering_params, graph_params)
+                map_builder_loaded.clustering_params = clustering_params
+                clustering(clustering_params)
 
             if find_path:
                 if map_builder_loaded.graph_params == graph_params:
-                    map_builder_loaded.find_path(3000, 2200, 4000, 1200, create_new_graph=False)
+                    map_builder_loaded.find_path(3500, 1000, 4000, 1200, create_new_graph=False)
                 else:
-                    map_builder_loaded.find_path(3000, 2200, 4000, 1200, create_new_graph=True)
+                    map_builder_loaded.graph_params = graph_params
+                    map_builder_loaded.find_path(3500, 1500, 4000, 1200, create_new_graph=True)
     except:
-        clustering(clustering_params, graph_params)
+        clustering(clustering_params)
         with open('map_builder_dump.pickle', 'rb') as load_file:
             map_builder_loaded = pickle.load(load_file)
+            map_builder_loaded.clustering_params = clustering_params
             if find_path:
-                map_builder_loaded.find_path(3000, 2200, 4000, 1200, create_new_graph=True)
+                map_builder_loaded.graph_params = graph_params
+                map_builder_loaded.find_path(3500, 1500, 4000, 1200, create_new_graph=True)
 
     # Обнуляем несериализуемые pickle поля
     map_builder_loaded.map_image = None
