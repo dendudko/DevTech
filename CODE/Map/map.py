@@ -491,10 +491,11 @@ class MapBuilder:
                         (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
                     self.graph.add_edge(point, end_point, weight=weight)
 
-        for point in really_interesting_points:
-            self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
-            self.context.set_source_rgba(0, 255, 255, 1)
-            self.context.fill()
+        # Отображение завершающих точек
+        # for point in really_interesting_points:
+        #     self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
+        #     self.context.set_source_rgba(0, 255, 255, 1)
+        #     self.context.fill()
         print('Всего завершающих узлов:', len(really_interesting_points))
 
         visited_points = 0
