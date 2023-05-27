@@ -3,7 +3,7 @@ import urllib.request
 import random
 
 import pandas
-from cairo import ImageSurface, FORMAT_ARGB32, Context, LINE_JOIN_ROUND
+from cairo import ImageSurface, FORMAT_ARGB32, Context, LINE_JOIN_ROUND, LINE_CAP_ROUND
 import math
 import mercantile
 import shapely
@@ -225,9 +225,9 @@ class MapBuilder:
 
         for key in self.intersection_bounds.keys():
             for dot in self.intersection_points[key]:
-                self.context.set_line_width(2)
+                self.context.set_line_width(1.5)
                 self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                self.context.set_source_rgba(0, 255, 255, 0.8)
+                self.context.set_source_rgba(0, 255, 255, 1)
                 self.context.stroke()
 
     def show_average_directions(self):
@@ -421,14 +421,14 @@ class MapBuilder:
 
         if not start_point_in_poly:
             nearest_point = nearest_points(shapely.MultiPoint(available_points), start_point)[0]
-            self.graph.add_edge(start_point, nearest_point, weight=0)
+            self.graph.add_edge(start_point, nearest_point, weight=0, color=[1, 0, 0, 1])
             current_point = nearest_point
         else:
             current_point = start_point
 
         if not end_point_in_poly:
             nearest_point = nearest_points(shapely.MultiPoint(available_points), end_point)[0]
-            self.graph.add_edge(nearest_point, end_point, weight=0)
+            self.graph.add_edge(nearest_point, end_point, weight=0, color=[1, 0, 0, 1])
             end_point_saved = end_point
             end_point = nearest_point
 
@@ -489,7 +489,7 @@ class MapBuilder:
                         ((math.hypot(point.x - end_point.x, point.y - end_point.y) /
                           self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
                         (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
-                    self.graph.add_edge(point, end_point, weight=weight)
+                    self.graph.add_edge(point, end_point, weight=weight, color=self.colors[key])
 
         # Отображение завершающих точек
         # for point in really_interesting_points:
@@ -539,7 +539,7 @@ class MapBuilder:
                                 ((math.hypot(current_point.x - point.x, current_point.y - point.y) /
                                   self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
                                 (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
-                            self.graph.add_edge(current_point, point, weight=weight)
+                            self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key])
 
                 if not create_new_graph:
                     break
@@ -575,17 +575,20 @@ class MapBuilder:
             path = networkx.astar_path(self.graph, start_point, end_point)
             # Отрисовка черной линии
             self.context.set_line_join(LINE_JOIN_ROUND)
-            self.context.set_line_width(12)
-            self.context.set_source_rgba(0, 0, 0, 0.4)
+            self.context.set_line_width(18)
+            self.context.set_source_rgba(0, 0, 0, 1)
             for node in path:
                 self.context.line_to(node.x, node.y)
             self.context.stroke()
             # Отрисовка на черной линии зеленой
             self.context.set_line_width(10)
-            self.context.set_source_rgba(0, 255, 0, 1)
-            for node in path:
-                self.context.line_to(node.x, node.y)
-            self.context.stroke()
+            self.context.set_line_cap(LINE_CAP_ROUND)
+            for i in range(len(path) - 1):
+                color = self.graph.get_edge_data(path[i], path[i + 1])['color']
+                self.context.set_source_rgba(color[0], color[1], color[2], color[3])
+                self.context.move_to(path[i].x, path[i].y)
+                self.context.line_to(path[i + 1].x, path[i + 1].y)
+                self.context.stroke()
             print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
             print('Маршрут найти не удалось :(')
@@ -599,14 +602,14 @@ class MapBuilder:
         # Выделение точек начала и конца
         self.context.set_line_width(0)
         self.context.set_source_rgba(255, 255, 255, 1)
-        self.context.arc(start_point.x, start_point.y, 5.5, 0 * math.pi / 180, 360 * math.pi / 180)
-        self.context.arc(end_point.x, end_point.y, 5.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(start_point.x, start_point.y, 9, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(end_point.x, end_point.y, 9, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
         self.context.set_source_rgba(255, 0, 0, 1)
-        self.context.arc(start_point.x, start_point.y, 3.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(start_point.x, start_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
         self.context.set_source_rgba(0, 0, 0, 1)
-        self.context.arc(end_point.x, end_point.y, 3.5, 0 * math.pi / 180, 360 * math.pi / 180)
+        self.context.arc(end_point.x, end_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
         # Удаляем начальный и конечный узлы, чтобы в графе не копился мусор
         self.graph.remove_node(start_point)

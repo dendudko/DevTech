@@ -77,7 +77,7 @@ if __name__ == "__main__":
                     map_builder_loaded.find_path(3750, 2500, 4000, 1200, create_new_graph=False)
                 else:
                     map_builder_loaded.graph_params = graph_params
-                    map_builder_loaded.find_path(3500, 1500, 4000, 1200, create_new_graph=True)
+                    map_builder_loaded.find_path(3750, 2500, 4000, 1200, create_new_graph=True)
     except:
         clustering(clustering_params)
         with open('map_builder_dump.pickle', 'rb') as load_file:
@@ -85,7 +85,7 @@ if __name__ == "__main__":
             map_builder_loaded.clustering_params = clustering_params
             if find_path:
                 map_builder_loaded.graph_params = graph_params
-                map_builder_loaded.find_path(3500, 1500, 4000, 1200, create_new_graph=True)
+                map_builder_loaded.find_path(3750, 2500, 4000, 1200, create_new_graph=True)
 
     # Обнуляем несериализуемые pickle поля
     map_builder_loaded.map_image = None
