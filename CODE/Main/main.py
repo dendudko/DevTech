@@ -1,4 +1,3 @@
-import mpu
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import parallel_backend
@@ -32,14 +31,6 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
 
     df['cluster'] = clusters
 
-    main_log = ''
-    main_log += 'Всего кластеров: ' + str(max(df['cluster']) + 1) + '\n'
-    try:
-        main_log += 'Доля шума: ' + str(df['cluster'].value_counts()[-1]) + ' / ' + str(len(df)) + '\n'
-    except KeyError:
-        main_log += 'Доля шума: ' + str(0) + ' / ' + str(len(df)) + '\n'
-    print(main_log)
-
     map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
                              file_name=f'{file_name}', create_new_empty_map=create_new_empty_map)
     map_builder.create_clustered_map()
@@ -50,8 +41,6 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
     # Сохраняем дамп объекта map_builder
     with open('map_builder_dump.pickle', 'wb') as dump_file:
         pickle.dump(map_builder, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
-
-    return main_log
 
 
 if __name__ == "__main__":

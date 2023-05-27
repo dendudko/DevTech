@@ -85,7 +85,12 @@ class MapBuilder:
         self.average_directions = {}
         self.average_speeds = {}
 
-        self.cluster_count = max(df['cluster']) + 1
+        try:
+            self.noise_count = self.df['cluster'].value_counts()[-1]
+        except KeyError:
+            self.noise_count = 0
+        self.total_count = len(self.df)
+        self.cluster_count = max(self.df['cluster']) + 1
         self.colors = generate_colors(self.cluster_count)
 
         self.graph = networkx.DiGraph()
@@ -195,9 +200,11 @@ class MapBuilder:
             self.context.fill()
 
     def show_intersection_points(self):
-        self.intersection_points = {}
         # Расстояние между точками в пересечении
-        distance_delta = self.graph_params['distance_delta']
+        if self.graph_params is not None:
+            distance_delta = self.graph_params['distance_delta']
+        else:
+            distance_delta = 100
         # Накидываем точки на границу пересечения полигонов
         if len(self.intersection_points) == 0:
             for key, intersection_bound in self.intersection_bounds.items():
@@ -627,17 +634,22 @@ class MapBuilder:
         # Удаляю шум, не уверен, стоит ли
         # self.delete_noise()
         for save_mode in 'clusters', 'polygons':
-            self.calculate_points_on_image()
             self.create_empty_map()
+            self.calculate_points_on_image()
             self.show_polygons()
             self.show_intersections()
             # frac - можно выбрать, какую долю объектов нанести на карту
             if save_mode == 'clusters':
                 self.show_points(frac=1)
-            self.show_average_directions()
-            self.show_intersection_points()
+            if save_mode == 'polygons':
+                self.show_average_directions()
+                self.show_intersection_points()
             self.save_mode = save_mode
             self.save_clustered_image()
+
+        log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
+        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        print(log)
 
         # Перевод координат изображения в координаты веб-меркатора
         # lat = self.left_top[0] + 3500 / self.kx
@@ -645,11 +657,12 @@ class MapBuilder:
         # print(lon, lat)
 
     def find_path(self, x_start, y_start, x_end, y_end, create_new_graph):
-        self.calculate_points_on_image()
         self.create_empty_map()
+        self.calculate_points_on_image()
         self.show_polygons()
         self.show_intersections()
         self.show_average_directions()
+        self.intersection_points = {}
         self.show_intersection_points()
         self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
                          create_new_graph=create_new_graph)
