@@ -3,7 +3,7 @@ import urllib.request
 import random
 
 import pandas
-from cairo import ImageSurface, FORMAT_ARGB32, Context, LINE_JOIN_ROUND, LINE_CAP_ROUND
+from cairo import ImageSurface, FORMAT_ARGB32, Context, LINE_JOIN_ROUND, LINE_CAP_ROUND, LinearGradient
 import math
 import mercantile
 import shapely
@@ -590,12 +590,27 @@ class MapBuilder:
             # Отрисовка на черной линии зеленой
             self.context.set_line_width(10)
             self.context.set_line_cap(LINE_CAP_ROUND)
-            for i in range(len(path) - 1):
-                color = self.graph.get_edge_data(path[i], path[i + 1])['color']
-                self.context.set_source_rgba(color[0], color[1], color[2], color[3])
+            for i in range(len(path) - 2):
+                ln_gradient = LinearGradient(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y)
+                color1 = self.graph.get_edge_data(path[i], path[i + 1])['color']
+                color2 = self.graph.get_edge_data(path[i + 1], path[i + 2])['color']
+                line_length = shapely.LineString([path[i], path[i + 1]]).length
+                if line_length > 15:
+                    color_stop1 = (line_length - 15) / line_length
+                    color_stop2 = (line_length - 5) / line_length
+                    ln_gradient.add_color_stop_rgba(color_stop1, color1[0], color1[1], color1[2], color1[3])
+                    ln_gradient.add_color_stop_rgba(color_stop2, color2[0], color2[1], color2[2], color2[3])
+                else:
+                    ln_gradient.add_color_stop_rgba(0, color1[0], color1[1], color1[2], color1[3])
+                self.context.set_source(ln_gradient)
                 self.context.move_to(path[i].x, path[i].y)
                 self.context.line_to(path[i + 1].x, path[i + 1].y)
                 self.context.stroke()
+            color = self.graph.get_edge_data(path[-2], path[-1])['color']
+            self.context.set_source_rgba(color[0], color[1], color[2], color[3])
+            self.context.move_to(path[-2].x, path[-2].y)
+            self.context.line_to(path[-1].x, path[-1].y)
+            self.context.stroke()
             print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
             print('Маршрут найти не удалось :(')
