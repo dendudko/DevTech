@@ -53,6 +53,10 @@ def generate_colors(num_colors):
     return colors
 
 
+def astar_heuristic(a, b):
+    return math.hypot(a.x - b.x, a.y - b.y)
+
+
 class MapBuilder:
     def __init__(self, west, south, east, north, zoom, df, file_name, create_new_empty_map=False, save_count=-1):
         # Задаваемые параметры
@@ -81,7 +85,7 @@ class MapBuilder:
         self.polygon_bounds = {}
         self.intersections = {}
         self.intersection_bounds = {}
-        self.intersection_points = {}
+        self.intersection_points = []
         self.average_directions = {}
         self.average_speeds = {}
 
@@ -201,21 +205,18 @@ class MapBuilder:
 
     def show_intersection_points(self):
         # Расстояние между точками в пересечении
-        if self.graph_params is not None:
-            distance_delta = self.graph_params['distance_delta']
-        else:
-            distance_delta = 100
+        distance_delta = self.graph_params['distance_delta']
         # Накидываем точки на границу пересечения полигонов
         if len(self.intersection_points) == 0:
             for key, intersection_bound in self.intersection_bounds.items():
                 distances = np.arange(0, shapely.LineString(intersection_bound).length, distance_delta)
-                self.intersection_points[key] = (
-                    [shapely.LineString(intersection_bound).interpolate(distance) for distance in distances])
+                self.intersection_points.extend(
+                    [shapely.LineString(intersection_bound).interpolate(distance) for distance in
+                     distances])
 
             # Добавляем точки внутрь полигонов
             for key in self.intersection_bounds.keys():
                 x_min, y_min, x_max, y_max = self.intersections[key].bounds
-
                 current_y = y_min - distance_delta
                 calculated_points = []
                 while current_y <= y_max:
@@ -228,14 +229,13 @@ class MapBuilder:
                 actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
                 if isinstance(actual_multi_point, shapely.MultiPoint):
                     actual_multi_point = actual_multi_point.geoms
-                    self.intersection_points[key] += actual_multi_point
+                    self.intersection_points.extend(actual_multi_point)
 
-        for key in self.intersection_bounds.keys():
-            for dot in self.intersection_points[key]:
-                self.context.set_line_width(1.5)
-                self.context.arc(dot.x, dot.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                self.context.set_source_rgba(0, 255, 255, 1)
-                self.context.stroke()
+        for point in self.intersection_points:
+            self.context.set_line_width(1.5)
+            self.context.arc(point.x, point.y, 2, 0 * math.pi / 180, 360 * math.pi / 180)
+            self.context.set_source_rgba(0, 255, 255, 1)
+            self.context.stroke()
 
     def show_average_directions(self):
         if len(self.average_directions) == 0 or len(self.average_speeds) == 0:
@@ -380,21 +380,20 @@ class MapBuilder:
                 self.map_image.write_to_png(f)
                 f.close()
 
-        self.context = Context(self.map_image)
-        if self.create_new_empty_map:
             # Отображаем точки
+            context = Context(self.map_image)
             for row in self.df_points_on_image.itertuples(index=False):
-                self.context.arc(row[0], row[1], 2, 0 * math.pi / 180, 360 * math.pi / 180)
-                self.context.set_source_rgba(255, 0, 0, 0.7)
-                self.context.fill()
+                context.arc(row[0], row[1], 2, 0 * math.pi / 180, 360 * math.pi / 180)
+                context.set_source_rgba(255, 0, 0, 0.7)
+                context.fill()
                 # Рисуем линии, отображающие направление, стрелки перегружают картинку, будут просто линии)
-                self.context.set_line_width(1.5)
-                self.context.move_to(row[0], row[1])
+                context.set_line_width(1.5)
+                context.move_to(row[0], row[1])
                 # Курс отсчитывается по часовой стрелке от направления на север, движение правостороннее
                 angle = math.radians(row[3] - 90)
                 line_length = row[2] / 10
-                self.context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
-                self.context.stroke()
+                context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
+                context.stroke()
             # Сохраняем результат
             with open(f'../images/clean/{self.file_name}_with_points.png', 'wb') as f:
                 self.map_image.write_to_png(f)
@@ -410,9 +409,7 @@ class MapBuilder:
 
         # Здесь добавляем в available_points все возможные точки из пересечений, чтобы ничего не пропустить...
         # Если delta большая - работает достаточно быстро
-        available_points = []
-        for key_intersection, intersection_bound_points in self.intersection_points.items():
-            available_points.extend(intersection_bound_points)
+        available_points = self.intersection_points
 
         polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
                            self.polygon_bounds.items()}
@@ -557,17 +554,12 @@ class MapBuilder:
                     print(visited_points)
                     if len(available_points) == 0:
                         break
-                else:
-                    print('Нет видимых точек :(')
-                    break
 
             if end_point_saved:
                 end_point = end_point_saved
 
         else:
             print('Конечная точка недостижима :(')
-            if create_new_graph:
-                self.graph = networkx.DiGraph()
 
         # Отрисовка графа
         # self.context.set_line_width(0.5)
@@ -577,49 +569,53 @@ class MapBuilder:
         #     self.context.line_to(edge[1].x, edge[1].y)
         # self.context.stroke()
 
-        # Вызов A* и отрисовка пути
+        # Вызов A* и Дейкстры, отрисовка пути
         try:
-            path = networkx.astar_path(self.graph, start_point, end_point)
-            # Отрисовка черной линии
-            self.context.set_line_join(LINE_JOIN_ROUND)
-            self.context.set_line_width(18)
-            self.context.set_source_rgba(0, 0, 0, 1)
-            for node in path:
-                self.context.line_to(node.x, node.y)
-            self.context.stroke()
-            # Отрисовка на черной линии зеленой
-            self.context.set_line_width(10)
-            self.context.set_line_cap(LINE_CAP_ROUND)
-            for i in range(len(path) - 2):
-                ln_gradient = LinearGradient(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y)
-                color1 = self.graph.get_edge_data(path[i], path[i + 1])['color']
-                color2 = self.graph.get_edge_data(path[i + 1], path[i + 2])['color']
-                line_length = shapely.LineString([path[i], path[i + 1]]).length
-                if line_length > 15:
-                    color_stop1 = (line_length - 15) / line_length
-                    color_stop2 = (line_length - 5) / line_length
-                    ln_gradient.add_color_stop_rgba(color_stop1, color1[0], color1[1], color1[2], color1[3])
-                    ln_gradient.add_color_stop_rgba(color_stop2, color2[0], color2[1], color2[2], color2[3])
-                else:
-                    ln_gradient.add_color_stop_rgba(0, color1[0], color1[1], color1[2], color1[3])
-                self.context.set_source(ln_gradient)
-                self.context.move_to(path[i].x, path[i].y)
-                self.context.line_to(path[i + 1].x, path[i + 1].y)
+            # Длина пути только для сравнения алгоритмов поиска, считается по весам ребер
+            paths = []
+            # paths.append(networkx.astar_path(self.graph, start_point, end_point, heuristic=astar_heuristic))
+            # print('Длина пути для A*:',
+            #       networkx.astar_path_length(self.graph, start_point, end_point, heuristic=astar_heuristic))
+            paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
+            print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
+
+            for path in paths:
+                # Отрисовка черной линии
+                self.context.set_line_join(LINE_JOIN_ROUND)
+                self.context.set_line_width(18)
+                self.context.set_source_rgba(0, 0, 0, 1)
+                for node in path:
+                    self.context.line_to(node.x, node.y)
                 self.context.stroke()
-            color = self.graph.get_edge_data(path[-2], path[-1])['color']
-            self.context.set_source_rgba(color[0], color[1], color[2], color[3])
-            self.context.move_to(path[-2].x, path[-2].y)
-            self.context.line_to(path[-1].x, path[-1].y)
-            self.context.stroke()
-            print('Маршрут успешно построен :)')
+                # Отрисовка на черной линии зеленой
+                self.context.set_line_width(10)
+                self.context.set_line_cap(LINE_CAP_ROUND)
+                for i in range(len(path) - 2):
+                    ln_gradient = LinearGradient(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y)
+                    color1 = self.graph.get_edge_data(path[i], path[i + 1])['color']
+                    color2 = self.graph.get_edge_data(path[i + 1], path[i + 2])['color']
+                    line_length = shapely.LineString([path[i], path[i + 1]]).length
+                    if line_length > 15:
+                        color_stop1 = (line_length - 15) / line_length
+                        color_stop2 = (line_length - 5) / line_length
+                        ln_gradient.add_color_stop_rgba(color_stop1, color1[0], color1[1], color1[2], color1[3])
+                        ln_gradient.add_color_stop_rgba(color_stop2, color2[0], color2[1], color2[2], color2[3])
+                    else:
+                        ln_gradient.add_color_stop_rgba(0, color1[0], color1[1], color1[2], color1[3])
+                    self.context.set_source(ln_gradient)
+                    self.context.move_to(path[i].x, path[i].y)
+                    self.context.line_to(path[i + 1].x, path[i + 1].y)
+                    self.context.stroke()
+                color = self.graph.get_edge_data(path[-2], path[-1])['color']
+                self.context.set_source_rgba(color[0], color[1], color[2], color[3])
+                self.context.move_to(path[-2].x, path[-2].y)
+                self.context.line_to(path[-1].x, path[-1].y)
+                self.context.stroke()
+                print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
             print('Маршрут найти не удалось :(')
-            if create_new_graph:
-                self.graph = networkx.DiGraph()
         except networkx.exception.NodeNotFound:
             print('Для начальной точки нет доступных узлов :(')
-            if create_new_graph:
-                self.graph = networkx.DiGraph()
 
         # Выделение точек начала и конца
         self.context.set_line_width(0)
@@ -636,6 +632,10 @@ class MapBuilder:
         # Удаляем начальный и конечный узлы, чтобы в графе не копился мусор
         self.graph.remove_node(start_point)
         self.graph.remove_node(end_point)
+        # Если граф не был построен - обнуляем граф и его параметры
+        if len(really_interesting_points) == 0 and create_new_graph:
+            self.graph_params = {}
+            self.graph = networkx.DiGraph()
         # Отображение букв для начальной и конечной точек
         self.context.set_source_rgba(0, 0, 0, 1)
         self.context.set_font_size(50)
@@ -658,7 +658,6 @@ class MapBuilder:
                 self.show_points(frac=1)
             if save_mode == 'polygons':
                 self.show_average_directions()
-                self.show_intersection_points()
             self.save_mode = save_mode
             self.save_clustered_image()
 
@@ -677,7 +676,7 @@ class MapBuilder:
         self.show_polygons()
         self.show_intersections()
         self.show_average_directions()
-        self.intersection_points = {}
+        self.intersection_points = []
         self.show_intersection_points()
         self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
                          create_new_graph=create_new_graph)
