@@ -407,10 +407,6 @@ class MapBuilder:
         if create_new_graph:
             self.graph = networkx.DiGraph()
 
-        # Здесь добавляем в available_points все возможные точки из пересечений, чтобы ничего не пропустить...
-        # Если delta большая - работает достаточно быстро
-        available_points = self.intersection_points
-
         polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
                            self.polygon_bounds.items()}
 
@@ -424,20 +420,20 @@ class MapBuilder:
                 start_point_in_poly = True
 
         if not start_point_in_poly:
-            nearest_point = nearest_points(shapely.MultiPoint(available_points), start_point)[0]
+            nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), start_point)[0]
             self.graph.add_edge(start_point, nearest_point, weight=0, color=[1, 0, 0, 1])
             current_point = nearest_point
         else:
             current_point = start_point
 
         if not end_point_in_poly:
-            nearest_point = nearest_points(shapely.MultiPoint(available_points), end_point)[0]
+            nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), end_point)[0]
             self.graph.add_edge(nearest_point, end_point, weight=0, color=[1, 0, 0, 1])
             end_point_saved = end_point
             end_point = nearest_point
 
-        available_points.append(start_point)
-        available_points.append(end_point)
+        self.intersection_points.append(start_point)
+        self.intersection_points.append(end_point)
         self.graph.add_node(start_point)
         self.graph.add_node(end_point)
 
@@ -453,7 +449,7 @@ class MapBuilder:
 
         # Определяем углы до точек
         angles = {point: (math.atan2(point.y - end_point.y, point.x - end_point.x)
-                          + 2 * math.pi) % (math.pi * 2) for point in available_points}
+                          + 2 * math.pi) % (math.pi * 2) for point in self.intersection_points}
 
         for key, direction in interesting_directions.items():
             angle_center = (direction - 90 - 180 + 360) % 360
@@ -513,7 +509,7 @@ class MapBuilder:
 
                 # Определяем углы до точек
                 angles = {point: (math.atan2(point.y - current_point.y, point.x - current_point.x)
-                                  + 2 * math.pi) % (math.pi * 2) for point in available_points}
+                                  + 2 * math.pi) % (math.pi * 2) for point in self.intersection_points}
                 for key, direction in available_directions.items():
                     angle_center = (direction - 90 + 360) % 360
                     # Определяем границы видимости
@@ -547,12 +543,12 @@ class MapBuilder:
 
                 if not create_new_graph:
                     break
-                if len(available_points) != 0:
-                    current_point = available_points.pop()
+                if len(self.intersection_points) != 0:
+                    current_point = self.intersection_points.pop()
                     visited_points += 1
-                    print(len(available_points))
+                    print(len(self.intersection_points))
                     print(visited_points)
-                    if len(available_points) == 0:
+                    if len(self.intersection_points) == 0:
                         break
 
             if end_point_saved:
@@ -676,6 +672,7 @@ class MapBuilder:
         self.show_polygons()
         self.show_intersections()
         self.show_average_directions()
+        # Если delta большая - работает достаточно быстро
         self.intersection_points = []
         self.show_intersection_points()
         self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
