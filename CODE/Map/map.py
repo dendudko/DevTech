@@ -11,6 +11,7 @@ import numpy as np
 
 from shapely.ops import nearest_points
 import networkx
+import mpu
 
 
 # ChatGPT выдал прекрасную генерацию цветов
@@ -55,6 +56,28 @@ def generate_colors(num_colors):
 
 def astar_heuristic(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
+
+
+def get_hours_minutes_str(time):
+    time_str = ''
+    hours = math.floor(time)
+    minutes = math.ceil((time % 1 * 60))
+    if hours > 0:
+        if 10 <= hours % 100 <= 20 or 5 <= hours % 10 <= 9 or hours % 10 == 0:
+            time_str += str(hours) + ' часов '
+        elif hours % 10 == 1:
+            time_str += str(hours) + ' час '
+        elif 2 <= hours % 10 <= 4:
+            time_str += str(hours) + ' часа '
+
+    if 10 <= minutes % 100 <= 20 or 5 <= minutes % 10 <= 9 or minutes % 10 == 0:
+        time_str += str(minutes) + ' минут'
+    elif minutes % 10 == 1:
+        time_str += str(minutes) + ' минута'
+    elif 2 <= minutes % 10 <= 4:
+        time_str += str(minutes) + ' минуты'
+
+    return time_str
 
 
 class MapBuilder:
@@ -411,6 +434,7 @@ class MapBuilder:
                            self.polygon_bounds.items()}
 
         # Костыльная обработка случая, когда точка А или Б не попала в полигон
+        # Предполагаем, что скорость в таком случае 30 узлов
         end_point_in_poly = False
         start_point_in_poly = False
         for key in self.polygon_bounds.keys():
@@ -421,14 +445,22 @@ class MapBuilder:
 
         if not start_point_in_poly:
             nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), start_point)[0]
-            self.graph.add_edge(start_point, nearest_point, weight=0, color=[1, 0, 0, 1])
+            lat1, lon1 = self.left_top[0] + start_point.x / self.kx, self.left_top[1] + start_point.y / self.ky
+            lat2, lon2 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
+            distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
+            self.graph.add_edge(start_point, nearest_point, weight=0, color=[1, 0, 0, 1], angle_deviation=0,
+                                distance=distance, speed=30)
             current_point = nearest_point
         else:
             current_point = start_point
 
         if not end_point_in_poly:
             nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), end_point)[0]
-            self.graph.add_edge(nearest_point, end_point, weight=0, color=[1, 0, 0, 1])
+            lat1, lon1 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
+            lat2, lon2 = self.left_top[0] + end_point.x / self.kx, self.left_top[1] + end_point.y / self.ky
+            distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
+            self.graph.add_edge(nearest_point, end_point, weight=0, color=[1, 0, 0, 1], angle_deviation=0,
+                                distance=distance, speed=30)
             end_point_saved = end_point
             end_point = nearest_point
 
@@ -483,13 +515,19 @@ class MapBuilder:
             for point in current_angles_keys:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     really_interesting_points.append(point)
-                    # Вес = sqrt(((расстояние в пикселях / скорость (в узлах * 10)) * вес времени) ** 2 +
+                    # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
                     # + (разница направлений * вес направления) ** 2)
+                    angle_deviation = abs(angles[point] - angle_center_rad) / abs(angle_center_rad)
+                    lat1, lon1 = self.left_top[0] + point.x / self.kx, self.left_top[1] + point.y / self.ky
+                    lat2, lon2 = self.left_top[0] + end_point.x / self.kx, self.left_top[1] + end_point.y / self.ky
+                    distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1),
+                                                      mercantile.lnglat(lon2, lat2)) / 1.85
+                    speed = self.average_speeds[key] / 10
                     weight = math.sqrt(
-                        ((math.hypot(point.x - end_point.x, point.y - end_point.y) /
-                          self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
-                        (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
-                    self.graph.add_edge(point, end_point, weight=weight, color=self.colors[key])
+                        ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
+                        (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
+                    self.graph.add_edge(point, end_point, weight=weight, color=self.colors[key],
+                                        angle_deviation=angle_deviation, distance=distance, speed=speed)
 
         # Отображение завершающих точек
         # for point in really_interesting_points:
@@ -533,13 +571,20 @@ class MapBuilder:
                         continue
                     for point in current_angles_keys:
                         if angle_left_rad <= angles[point] <= angle_right_rad:
-                            # Вес = sqrt(((расстояние в пикселях / скорость (в узлах * 10) * вес времени) ** 2 +
+                            # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
                             # + (разница направлений * вес направления) ** 2)
-                            weight = math.sqrt(
-                                ((math.hypot(current_point.x - point.x, current_point.y - point.y) /
-                                  self.average_speeds[key]) * self.graph_params['weight_time_graph']) ** 2 +
-                                (abs(angles[point] - angle_center_rad) * self.graph_params['weight_course_graph']) ** 2)
-                            self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key])
+                            angle_deviation = abs(angles[point] - angle_center_rad) / abs(angle_center_rad)
+                            lat1, lon1 = self.left_top[0] + current_point.x / self.kx, self.left_top[
+                                1] + current_point.y / self.ky
+                            lat2, lon2 = self.left_top[0] + point.x / self.kx, self.left_top[1] + point.y / self.ky
+                            distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1),
+                                                              mercantile.lnglat(lon2, lat2)) / 1.85
+                            speed = self.average_speeds[key] / 10
+                            weight = math.sqrt(((distance / speed) * self.graph_params[
+                                'weight_time_graph']) ** 2 + (angle_deviation * self.graph_params[
+                                'weight_course_graph']) ** 2)
+                            self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
+                                                angle_deviation=angle_deviation, distance=distance, speed=speed)
 
                 if not create_new_graph:
                     break
@@ -573,7 +618,7 @@ class MapBuilder:
             # print('Длина пути для A*:',
             #       networkx.astar_path_length(self.graph, start_point, end_point, heuristic=astar_heuristic))
             paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
-            print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
+            # print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
 
             for path in paths:
                 # Отрисовка черной линии
@@ -586,10 +631,20 @@ class MapBuilder:
                 # Отрисовка на черной линии зеленой
                 self.context.set_line_width(10)
                 self.context.set_line_cap(LINE_CAP_ROUND)
+                distance = 0
+                angle_deviation_sum = 0
+                time_sum = 0
                 for i in range(len(path) - 2):
                     ln_gradient = LinearGradient(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y)
-                    color1 = self.graph.get_edge_data(path[i], path[i + 1])['color']
-                    color2 = self.graph.get_edge_data(path[i + 1], path[i + 2])['color']
+                    current_edge_data = self.graph.get_edge_data(path[i], path[i + 1])
+                    next_edge_data = self.graph.get_edge_data(path[i + 1], path[i + 2])
+
+                    distance += current_edge_data['distance']
+                    angle_deviation_sum += current_edge_data['angle_deviation']
+                    time_sum += current_edge_data['distance'] / current_edge_data['speed']
+
+                    color1 = current_edge_data['color']
+                    color2 = next_edge_data['color']
                     line_length = shapely.LineString([path[i], path[i + 1]]).length
                     if line_length > 15:
                         color_stop1 = (line_length - 15) / line_length
@@ -602,7 +657,19 @@ class MapBuilder:
                     self.context.move_to(path[i].x, path[i].y)
                     self.context.line_to(path[i + 1].x, path[i + 1].y)
                     self.context.stroke()
-                color = self.graph.get_edge_data(path[-2], path[-1])['color']
+
+                last_edge_data = self.graph.get_edge_data(path[-2], path[-1])
+                color = last_edge_data['color']
+
+                distance += last_edge_data['distance']
+                angle_deviation_sum += last_edge_data['angle_deviation']
+                time_sum += last_edge_data['distance'] / last_edge_data['speed']
+                angle_deviation_mean = angle_deviation_sum / len(path)
+
+                print('Отклонение от средних курсов на маршруте:', str(round(angle_deviation_mean * 100, 1)) + '%')
+                print('Протяженность маршрута:', str(round(distance, 3)) + ' м. мили')
+                print('Примерное время прохождения маршрута:', get_hours_minutes_str(time_sum))
+
                 self.context.set_source_rgba(color[0], color[1], color[2], color[3])
                 self.context.move_to(path[-2].x, path[-2].y)
                 self.context.line_to(path[-1].x, path[-1].y)
