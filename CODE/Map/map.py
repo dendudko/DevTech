@@ -512,10 +512,9 @@ class MapBuilder:
             try:
                 current_angles_keys_multipoint = shapely.intersection(
                     polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
-                current_angles_keys = []
-                for point in current_angles_keys_multipoint:
-                    if shapely.contains(polygon_buffers[key], shapely.LineString([end_point, point])):
-                        current_angles_keys.append(point)
+                current_angles_keys = [
+                    point for point in current_angles_keys_multipoint
+                    if shapely.contains(polygon_buffers[key], shapely.LineString([point, end_point]))]
             except AttributeError:
                 continue
             for point in current_angles_keys:
@@ -554,6 +553,7 @@ class MapBuilder:
                 # Определяем углы до точек
                 angles = {point: (math.atan2(point.y - current_point.y, point.x - current_point.x)
                                   + 2 * math.pi) % (math.pi * 2) for point in self.intersection_points}
+
                 for key, direction in available_directions.items():
                     angle_center = (direction - 90 + 360) % 360
                     # Определяем границы видимости
@@ -580,10 +580,9 @@ class MapBuilder:
                     try:
                         current_angles_keys_multipoint = shapely.intersection(
                             polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
-                        current_angles_keys = []
-                        for point in current_angles_keys_multipoint:
-                            if shapely.contains(polygon_buffers[key], shapely.LineString([current_point, point])):
-                                current_angles_keys.append(point)
+                        current_angles_keys = [
+                            point for point in current_angles_keys_multipoint
+                            if shapely.contains(polygon_buffers[key], shapely.LineString([current_point, point]))]
                     except AttributeError:
                         continue
                     for point in current_angles_keys:
@@ -721,6 +720,15 @@ class MapBuilder:
         self.context.show_text('A')
         self.context.move_to(end_point.x - 15, end_point.y - 15)
         self.context.show_text('B')
+
+    def recalculate_edges(self):
+        for edge in self.graph.edges:
+            data = self.graph.get_edge_data(edge[0], edge[1])
+            weight = math.sqrt(((data['distance'] / data['speed']) * self.graph_params[
+                'weight_time_graph']) ** 2 + (data['angle_deviation'] * self.graph_params[
+                'weight_course_graph']) ** 2)
+            self.graph.add_edge(edge[0], edge[1], weight=weight, color=data['color'],
+                                angle_deviation=data['angle_deviation'], distance=data['distance'], speed=data['speed'])
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
