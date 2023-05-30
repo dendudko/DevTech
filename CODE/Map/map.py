@@ -430,7 +430,7 @@ class MapBuilder:
         if create_new_graph:
             self.graph = networkx.DiGraph()
 
-        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-8) for key, polygon_bound in
+        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-7) for key, polygon_bound in
                            self.polygon_bounds.items()}
 
         # Костыльная обработка случая, когда точка А или Б не попала в полигон
@@ -647,7 +647,7 @@ class MapBuilder:
                     color1 = current_edge_data['color']
                     color2 = next_edge_data['color']
                     line_length = shapely.LineString([path[i], path[i + 1]]).length
-                    if line_length > 15:
+                    if line_length > 30:
                         color_stop1 = (line_length - 15) / line_length
                         color_stop2 = (line_length - 5) / line_length
                         ln_gradient.add_color_stop_rgba(color_stop1, color1[0], color1[1], color1[2], color1[3])
