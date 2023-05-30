@@ -441,8 +441,8 @@ class MapBuilder:
         # Угол обзора в градусах
         angle_of_vision = self.graph_params['angle_of_vision']
 
-        # Ищем точки с прямым доступом в точку Б
         available_directions = {}
+        # Ищем точки с прямым доступом в точку Б
         really_interesting_points = []
         for key in self.polygon_bounds.keys():
             if shapely.intersects(polygon_buffers[key], current_point):
