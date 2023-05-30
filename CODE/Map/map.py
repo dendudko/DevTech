@@ -310,7 +310,7 @@ class MapBuilder:
             max_y = max([t.y for t in tiles])
 
             tile_size = (256, 256)
-            # создаем пустое изображение в которое как мозайку будем вставлять тайлы
+            # создаем пустое изображение в которое как мозаику будем вставлять тайлы
             self.map_image = ImageSurface(
                 FORMAT_ARGB32,
                 tile_size[0] * (max_x - min_x + 1),
@@ -353,7 +353,7 @@ class MapBuilder:
                 )
                 ctx.paint()
 
-            # расчитываем коэффициенты
+            # рассчитываем коэффициенты
             bounds = {
                 "left": min([mercantile.xy_bounds(t).left for t in tiles]),
                 "right": max([mercantile.xy_bounds(t).right for t in tiles]),
@@ -389,11 +389,11 @@ class MapBuilder:
         else:
             self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
 
-        # рассчитываем координаты углов в веб-меркаоторе
+        # рассчитываем координаты углов в веб-меркаторе
         self.left_top = tuple(mercantile.xy(self.west, self.north))
         right_bottom = tuple(mercantile.xy(self.east, self.south))
 
-        # расчитываем коэффициенты
+        # рассчитываем коэффициенты
         self.kx = self.map_image.get_width() / (right_bottom[0] - self.left_top[0])
         self.ky = self.map_image.get_height() / (right_bottom[1] - self.left_top[1])
 
