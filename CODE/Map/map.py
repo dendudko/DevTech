@@ -430,7 +430,7 @@ class MapBuilder:
         if create_new_graph:
             self.graph = networkx.DiGraph()
 
-        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-7) for key, polygon_bound in
+        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
                            self.polygon_bounds.items()}
 
         # Костыльная обработка случая, когда точка А или Б не попала в полигон
@@ -444,7 +444,8 @@ class MapBuilder:
                 start_point_in_poly = True
 
         if not start_point_in_poly:
-            nearest_point = nearest_points(shapely.ops.unary_union(list(polygon_buffers.values())), start_point)[0]
+            polygon_union = [shapely.Polygon(polygon) for polygon in self.polygon_bounds.values()]
+            nearest_point = nearest_points(shapely.ops.unary_union(polygon_union), start_point)[0]
             lat1, lon1 = self.left_top[0] + start_point.x / self.kx, self.left_top[1] + start_point.y / self.ky
             lat2, lon2 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
             distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
@@ -455,7 +456,8 @@ class MapBuilder:
             current_point = start_point
 
         if not end_point_in_poly:
-            nearest_point = nearest_points(shapely.ops.unary_union(list(polygon_buffers.values())), end_point)[0]
+            polygon_union = [shapely.Polygon(polygon) for polygon in self.polygon_bounds.values()]
+            nearest_point = nearest_points(shapely.ops.unary_union(polygon_union), end_point)[0]
             lat1, lon1 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
             lat2, lon2 = self.left_top[0] + end_point.x / self.kx, self.left_top[1] + end_point.y / self.ky
             distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
@@ -506,6 +508,7 @@ class MapBuilder:
             # self.context.line_to(end_point.x + math.cos(angle_right_rad) * 1000,
             #                      end_point.y + math.sin(angle_right_rad) * 1000)
             # self.context.stroke()
+
             try:
                 current_angles_keys_multipoint = shapely.intersection(
                     polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
@@ -560,6 +563,17 @@ class MapBuilder:
                     angle_left_rad = math.radians(angle_left)
                     angle_center_rad = math.radians(angle_center)
                     angle_right_rad = math.radians(angle_right)
+
+                    # # Отрисовка границ угла обзора
+                    # self.context.set_source_rgba(255, 255, 255, 1)
+                    # self.context.set_line_width(2)
+                    # self.context.move_to(current_point.x, current_point.y)
+                    # self.context.line_to(current_point.x + math.cos(angle_left_rad) * 1000,
+                    #                      current_point.y + math.sin(angle_left_rad) * 1000)
+                    # self.context.move_to(current_point.x, current_point.y)
+                    # self.context.line_to(current_point.x + math.cos(angle_right_rad) * 1000,
+                    #                      current_point.y + math.sin(angle_right_rad) * 1000)
+                    # self.context.stroke()
 
                     # Оптимизирован поиск пересечения множества точек и текущего полигона,
                     # вычислительная эффективность увеличилась примерно в 2.5 раза
