@@ -430,7 +430,7 @@ class MapBuilder:
         if create_new_graph:
             self.graph = networkx.DiGraph()
 
-        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
+        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-8) for key, polygon_bound in
                            self.polygon_bounds.items()}
 
         # Костыльная обработка случая, когда точка А или Б не попала в полигон
@@ -444,7 +444,7 @@ class MapBuilder:
                 start_point_in_poly = True
 
         if not start_point_in_poly:
-            nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), start_point)[0]
+            nearest_point = nearest_points(shapely.ops.unary_union(list(polygon_buffers.values())), start_point)[0]
             lat1, lon1 = self.left_top[0] + start_point.x / self.kx, self.left_top[1] + start_point.y / self.ky
             lat2, lon2 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
             distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
@@ -455,7 +455,7 @@ class MapBuilder:
             current_point = start_point
 
         if not end_point_in_poly:
-            nearest_point = nearest_points(shapely.MultiPoint(self.intersection_points), end_point)[0]
+            nearest_point = nearest_points(shapely.ops.unary_union(list(polygon_buffers.values())), end_point)[0]
             lat1, lon1 = self.left_top[0] + nearest_point.x / self.kx, self.left_top[1] + nearest_point.y / self.ky
             lat2, lon2 = self.left_top[0] + end_point.x / self.kx, self.left_top[1] + end_point.y / self.ky
             distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
@@ -464,7 +464,10 @@ class MapBuilder:
             end_point_saved = end_point
             end_point = nearest_point
 
-        self.intersection_points.append(start_point)
+        # Если точки лежат в полигонах - добавляем их в точки пересечений (множество узлов)
+        # Если не лежат - добавляем в точки пересечений ближайшие точки полигонов,
+        # сами точки начала и конца будут только в графе
+        self.intersection_points.append(current_point)
         self.intersection_points.append(end_point)
         self.graph.add_node(start_point)
         self.graph.add_node(end_point)
@@ -595,13 +598,11 @@ class MapBuilder:
                     print(visited_points)
                     if len(self.intersection_points) == 0:
                         break
-
-            if end_point_saved:
-                end_point = end_point_saved
-
         else:
             print('Конечная точка недостижима :(')
 
+        if end_point_saved:
+            end_point = end_point_saved
         # Отрисовка графа
         # self.context.set_line_width(0.5)
         # self.context.set_source_rgba(255, 255, 255, 1)
