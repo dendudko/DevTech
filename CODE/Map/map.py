@@ -670,7 +670,7 @@ class MapBuilder:
             self.graph_params = {}
             self.graph = networkx.DiGraph()
         # Отображение букв для начальной и конечной точек
-        # TODO: убрать этот кусок в проде
+        # TODO: убрать этот кусок в релизе 
         self.context.set_source_rgba(0, 0, 0, 1)
         self.context.set_font_size(50)
         self.context.move_to(start_point.x - 15, start_point.y - 15)
