@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # clustering_params = None
     # graph_params = None
     clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29, 'min_samples': 50}
-    graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1, 'weight_course_graph': 1}
+    graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1, 'weight_course_graph': 0.01}
     find_path = True
 
     # pickle отлично решает задачу сериализации объекта MapBuilder
@@ -62,7 +62,10 @@ if __name__ == "__main__":
 
         with open('map_builder_dump.pickle', 'rb') as load_file:
             if find_path:
-                if map_builder_loaded.graph_params == graph_params:
+                if len(map_builder_loaded.graph_params.keys()) == 0:
+                    map_builder_loaded.graph_params = graph_params
+                    map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=True)
+                elif map_builder_loaded.graph_params == graph_params:
                     map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=False)
                 elif map_builder_loaded.graph_params['distance_delta'] == graph_params['distance_delta'] and \
                         map_builder_loaded.graph_params['angle_of_vision'] == graph_params['angle_of_vision'] and \
@@ -71,9 +74,6 @@ if __name__ == "__main__":
                     map_builder_loaded.graph_params = graph_params
                     map_builder_loaded.recalculate_edges()
                     map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=False)
-                else:
-                    map_builder_loaded.graph_params = graph_params
-                    map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=True)
 
     except FileNotFoundError or EOFError:
         clustering(clustering_params)

@@ -13,8 +13,9 @@ from shapely.ops import nearest_points
 import networkx
 import mpu
 
+import concurrent.futures
 
-# ChatGPT выдал прекрасную генерацию цветов
+
 def generate_colors(num_colors):
     colors = []
     # Golden ratio
@@ -80,6 +81,20 @@ def get_hours_minutes_str(time):
     return time_str
 
 
+def load_tile(tile, min_x, min_y, tile_size, headers):
+    server = random.choice(['a', 'b', 'c'])
+    url = 'http://{server}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'.format(
+        server=server,
+        zoom=tile.z,
+        x=tile.x,
+        y=tile.y
+    )
+    request = urllib.request.Request(url=url, headers=headers)
+    response = urllib.request.urlopen(request)
+    img = ImageSurface.create_from_png(io.BytesIO(response.read()))
+    return img, (tile.x - min_x) * tile_size[0], (tile.y - min_y) * tile_size[0]
+
+
 class MapBuilder:
     def __init__(self, west, south, east, north, zoom, df, file_name, create_new_empty_map=False, save_count=-1):
         # Задаваемые параметры
@@ -93,8 +108,8 @@ class MapBuilder:
         self.create_new_empty_map = create_new_empty_map
         self.save_mode = save_count
 
-        self.clustering_params = None
-        self.graph_params = None
+        self.clustering_params = {}
+        self.graph_params = {}
 
         # Местные поля
         self.map_image = None
@@ -106,6 +121,7 @@ class MapBuilder:
         self.df_points_on_image = pandas.DataFrame(columns=['x', 'y', 'speed', 'course', 'cluster'])
         self.polygons = {}
         self.polygon_bounds = {}
+        self.polygon_buffers = {}
         self.intersections = {}
         self.intersection_bounds = {}
         self.intersection_points = []
@@ -181,6 +197,7 @@ class MapBuilder:
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
                     self.polygon_bounds[i] = tuple(list(zip(a, b)))
+                    self.polygon_buffers[i] = shapely.Polygon(self.polygon_bounds[i]).buffer(1e-9)
 
         for key, polygon_bound in self.polygon_bounds.items():
             red = self.colors[key][0]
@@ -302,6 +319,7 @@ class MapBuilder:
 
     def create_empty_map(self):
         if self.create_new_empty_map:
+            tile_size = (256, 256)
             tiles = list(mercantile.tiles(self.west, self.south, self.east, self.north, self.zoom))
 
             min_x = min([t.x for t in tiles])
@@ -309,7 +327,6 @@ class MapBuilder:
             max_x = max([t.x for t in tiles])
             max_y = max([t.y for t in tiles])
 
-            tile_size = (256, 256)
             # создаем пустое изображение в которое как мозаику будем вставлять тайлы
             self.map_image = ImageSurface(
                 FORMAT_ARGB32,
@@ -328,30 +345,12 @@ class MapBuilder:
                        'Accept-Language': 'en-US,en;q=0.8',
                        'Connection': 'keep-alive'}
 
-            # i = 0
-            # print(len(tiles))
-            # Не знаю, как оптимизировать
-            for t in tiles:
-                server = random.choice(['a', 'b', 'c'])  # у OSM три сервера, распределяем нагрузку
-                url = 'http://{server}.tile.openstreetmap.org/{zoom}/{x}/{y}.png'.format(
-                    server=server,
-                    zoom=t.z,
-                    x=t.x,
-                    y=t.y
-                )
-                # i += 1
-                # print(i, url)
-                request = urllib.request.Request(url=url, headers=headers)
-                response = urllib.request.urlopen(request)
-
-                img = ImageSurface.create_from_png(io.BytesIO(response.read()))
-
-                ctx.set_source_surface(
-                    img,
-                    (t.x - min_x) * tile_size[0],
-                    (t.y - min_y) * tile_size[0]
-                )
-                ctx.paint()
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = [executor.submit(load_tile, tile, min_x, min_y, tile_size, headers) for tile in tiles]
+                for future in concurrent.futures.as_completed(futures):
+                    img, x, y = future.result()
+                    ctx.set_source_surface(img, x, y)
+                    ctx.paint()
 
             # рассчитываем коэффициенты
             bounds = {
@@ -384,7 +383,6 @@ class MapBuilder:
             ctx = Context(map_image_clipped)
             ctx.set_source_surface(self.map_image, -offset_left, -offset_top)
             ctx.paint()
-
             self.map_image = map_image_clipped
         else:
             self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
@@ -421,7 +419,9 @@ class MapBuilder:
             with open(f'../images/clean/{self.file_name}_with_points.png', 'wb') as f:
                 self.map_image.write_to_png(f)
 
+        self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
         self.context = Context(self.map_image)
+        self.create_new_empty_map = False
 
     def get_edge_distance(self, point_1, point_2):
         lat1, lon1 = self.left_top[0] + point_1.x / self.kx, self.left_top[1] + point_1.y / self.ky
@@ -437,7 +437,7 @@ class MapBuilder:
                             distance=distance, speed=30)
         return nearest_point
 
-    def visit_point(self, polygon_buffers, current_point, rotation=0):
+    def visit_point(self, current_point, rotation=0):
         # Угол обзора в градусах
         angle_of_vision = self.graph_params['angle_of_vision']
 
@@ -445,7 +445,7 @@ class MapBuilder:
         # Ищем точки с прямым доступом в точку Б
         really_interesting_points = []
         for key in self.polygon_bounds.keys():
-            if shapely.intersects(polygon_buffers[key], current_point):
+            if shapely.intersects(self.polygon_buffers[key], current_point):
                 available_directions[key] = self.average_directions[key]
 
         # Определяем углы до точек
@@ -473,29 +473,25 @@ class MapBuilder:
             # self.context.stroke()
             try:
                 current_angles_keys_multipoint = shapely.intersection(
-                    polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
+                    self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
                 current_angles_keys = [
                     point for point in current_angles_keys_multipoint
-                    if shapely.contains(polygon_buffers[key], shapely.LineString([point, current_point]))]
+                    if shapely.contains(self.polygon_buffers[key], shapely.LineString([point, current_point]))]
             except AttributeError:
                 continue
             for point in current_angles_keys:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     if rotation == 180:
                         really_interesting_points.append(point)
-                    # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
-                    # + (разница направлений * вес направления) ** 2)
-                    angle_deviation = abs(angles[point] - angle_center_rad) / abs(angle_center_rad)
-                    distance = self.get_edge_distance(point, current_point)
-                    speed = self.average_speeds[key] / 10
-                    weight = math.sqrt(
-                        ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
-                        (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
-                    # Если ищем завершающие точки - разворачиваем ребро
-                    if rotation == 180:
-                        self.graph.add_edge(point, current_point, weight=weight, color=self.colors[key],
-                                            angle_deviation=angle_deviation, distance=distance, speed=speed)
                     else:
+                        # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
+                        # + (разница направлений * вес направления) ** 2)
+                        angle_deviation = math.degrees(abs(angles[point] - angle_center_rad))
+                        distance = self.get_edge_distance(point, current_point)
+                        speed = self.average_speeds[key] / 10
+                        weight = math.sqrt(
+                            ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
+                            (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
                         self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
                                             angle_deviation=angle_deviation, distance=distance, speed=speed)
         if rotation == 180:
@@ -516,17 +512,14 @@ class MapBuilder:
         if create_new_graph:
             self.graph = networkx.DiGraph()
 
-        polygon_buffers = {key: shapely.Polygon(polygon_bound).buffer(1e-9) for key, polygon_bound in
-                           self.polygon_bounds.items()}
-
         # Обработка случая, когда точка А или Б не попала в полигон
         # Предполагаем, что скорость в таком случае 30 узлов
         end_point_in_poly = False
         start_point_in_poly = False
         for key in self.polygon_bounds.keys():
-            if shapely.intersects(polygon_buffers[key], end_point):
+            if shapely.intersects(self.polygon_buffers[key], end_point):
                 end_point_in_poly = True
-            if shapely.intersects(polygon_buffers[key], start_point):
+            if shapely.intersects(self.polygon_buffers[key], start_point):
                 start_point_in_poly = True
 
         if not start_point_in_poly:
@@ -546,7 +539,7 @@ class MapBuilder:
         self.graph.add_node(start_point)
         self.graph.add_node(end_point)
 
-        really_interesting_points = self.visit_point(polygon_buffers, end_point, rotation=180)
+        really_interesting_points = self.visit_point(end_point, rotation=180)
         # # Отображение завершающих узлов
         # for point in really_interesting_points:
         #     self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
@@ -554,20 +547,26 @@ class MapBuilder:
         #     self.context.fill()
         print('Всего завершающих узлов:', len(really_interesting_points))
 
-        visited_points = 0
-
+        # visited_points = 0
         if len(really_interesting_points) != 0:
-            while True:
-                self.visit_point(polygon_buffers, current_point)
-                if not create_new_graph:
-                    break
-                if len(self.intersection_points) != 0:
-                    current_point = self.intersection_points.pop()
-                    visited_points += 1
-                    print(len(self.intersection_points))
-                    print(visited_points)
-                    if len(self.intersection_points) == 0:
-                        break
+            # Многопоточность позволяет немного уменьшить время выполнения
+            if create_new_graph:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    executor.map(self.visit_point, self.intersection_points)
+            else:
+                self.visit_point(current_point)
+
+            # while True:
+            #     self.visit_point(current_point)
+            #     if not create_new_graph:
+            #         break
+            #     if len(self.intersection_points) > visited_points:
+            #         current_point = self.intersection_points[visited_points]
+            #         visited_points += 1
+            #         print(len(self.intersection_points))
+            #         print(visited_points)
+            #     else:
+            #         break
         else:
             print('Конечная точка недостижима :(')
 
@@ -583,8 +582,9 @@ class MapBuilder:
 
         # Вызов A* и Дейкстры, отрисовка пути
         try:
+            paths = []
             # Длина пути только для сравнения алгоритмов поиска, считается по весам ребер
-            paths = [networkx.dijkstra_path(self.graph, start_point, end_point)]
+            paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
             # print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
             # paths.append(networkx.astar_path(self.graph, start_point, end_point, heuristic=astar_heuristic))
             # print('Длина пути для A*:',
@@ -601,17 +601,24 @@ class MapBuilder:
                 # Отрисовка на черной линии зеленой
                 self.context.set_line_width(10)
                 self.context.set_line_cap(LINE_CAP_ROUND)
-                distance = 0
                 angle_deviation_sum = 0
+                distance = 0
                 time_sum = 0
+                angle_deviation_on_section = []
+                speed_on_section = []
+                distance_of_section = []
                 for i in range(len(path) - 2):
                     ln_gradient = LinearGradient(path[i].x, path[i].y, path[i + 1].x, path[i + 1].y)
                     current_edge_data = self.graph.get_edge_data(path[i], path[i + 1])
                     next_edge_data = self.graph.get_edge_data(path[i + 1], path[i + 2])
 
-                    distance += current_edge_data['distance']
                     angle_deviation_sum += current_edge_data['angle_deviation']
+                    distance += current_edge_data['distance']
                     time_sum += current_edge_data['distance'] / current_edge_data['speed']
+
+                    angle_deviation_on_section.append(current_edge_data['angle_deviation'])
+                    speed_on_section.append(current_edge_data['speed'])
+                    distance_of_section.append(current_edge_data['distance'])
 
                     color1 = current_edge_data['color']
                     color2 = next_edge_data['color']
@@ -631,14 +638,26 @@ class MapBuilder:
                 last_edge_data = self.graph.get_edge_data(path[-2], path[-1])
                 color = last_edge_data['color']
 
-                distance += last_edge_data['distance']
                 angle_deviation_sum += last_edge_data['angle_deviation']
+                distance += last_edge_data['distance']
                 time_sum += last_edge_data['distance'] / last_edge_data['speed']
+
+                angle_deviation_on_section.append(last_edge_data['angle_deviation'])
+                speed_on_section.append(last_edge_data['speed'])
+                distance_of_section.append(last_edge_data['distance'])
+
                 angle_deviation_mean = angle_deviation_sum / len(path)
 
-                print('Отклонение от средних курсов на маршруте:', str(round(angle_deviation_mean * 100, 1)) + '%')
-                print('Протяженность маршрута:', str(round(distance, 3)) + ' м. мили')
+                print()
+                print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
+                print('Протяженность маршрута:', str(round(distance, 3)), '(м. мили)')
                 print('Примерное время прохождения маршрута:', get_hours_minutes_str(time_sum))
+                print()
+                print('Отклонения от курсов на участках:',
+                      [round(angle, 1) for angle in angle_deviation_on_section], '(°)')
+                print('Скорость на участках:', [round(speed, 1) for speed in speed_on_section], '(узлы)')
+                print('Протяженность участков:', [round(distance, 1) for distance in distance_of_section], '(м. мили)')
+                print()
 
                 self.context.set_source_rgba(color[0], color[1], color[2], color[3])
                 self.context.move_to(path[-2].x, path[-2].y)
@@ -662,15 +681,17 @@ class MapBuilder:
         self.context.set_source_rgba(0, 0, 0, 1)
         self.context.arc(end_point.x, end_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
-        # Удаляем начальный и конечный узлы, чтобы в графе не копился мусор
-        self.graph.remove_node(start_point)
-        self.graph.remove_node(end_point)
+        # Удаляем начальный и конечный узлы, не попавшие в полигоны, чтобы в графе не копился мусор
+        if not start_point_in_poly:
+            self.graph.remove_node(start_point)
+        if not end_point_in_poly:
+            self.graph.remove_node(end_point)
         # Если граф не был построен - обнуляем граф и его параметры
         if len(really_interesting_points) == 0 and create_new_graph:
             self.graph_params = {}
             self.graph = networkx.DiGraph()
         # Отображение букв для начальной и конечной точек
-        # TODO: убрать этот кусок в проде
+        # TODO: убрать этот кусок в релизе
         self.context.set_source_rgba(0, 0, 0, 1)
         self.context.set_font_size(50)
         self.context.move_to(start_point.x - 15, start_point.y - 15)
@@ -711,7 +732,8 @@ class MapBuilder:
         self.show_intersections()
         self.show_average_directions()
         # Если delta большая - работает достаточно быстро
-        self.intersection_points = []
+        if create_new_graph:
+            self.intersection_points = []
         self.show_intersection_points()
         self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
                          create_new_graph=create_new_graph)
