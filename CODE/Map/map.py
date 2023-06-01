@@ -534,8 +534,10 @@ class MapBuilder:
         # Если точки лежат в полигонах - добавляем их в точки пересечений (множество узлов)
         # Если не лежат - добавляем в точки пересечений ближайшие точки полигонов,
         # сами точки начала и конца будут только в графе
-        self.intersection_points.append(current_point)
-        self.intersection_points.append(end_point)
+        if current_point not in self.intersection_points:
+            self.intersection_points.append(current_point)
+        if end_point not in self.intersection_points:
+            self.intersection_points.append(end_point)
         self.graph.add_node(start_point)
         self.graph.add_node(end_point)
 
@@ -554,6 +556,8 @@ class MapBuilder:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     executor.map(self.visit_point, self.intersection_points)
             else:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    executor.map(self.visit_point, really_interesting_points)
                 self.visit_point(current_point)
 
             # while True:
@@ -681,7 +685,8 @@ class MapBuilder:
         self.context.set_source_rgba(0, 0, 0, 1)
         self.context.arc(end_point.x, end_point.y, 6, 0 * math.pi / 180, 360 * math.pi / 180)
         self.context.fill()
-        # Удаляем начальный и конечный узлы, не попавшие в полигоны, чтобы в графе не копился мусор
+        # Удаляем начальный и конечный узлы, не попавшие в полигоны,
+        # чтобы в графе не копился мусор
         if not start_point_in_poly:
             self.graph.remove_node(start_point)
         if not end_point_in_poly:
@@ -690,14 +695,14 @@ class MapBuilder:
         if len(really_interesting_points) == 0 and create_new_graph:
             self.graph_params = {}
             self.graph = networkx.DiGraph()
-        # Отображение букв для начальной и конечной точек
-        # TODO: убрать этот кусок в релизе
-        self.context.set_source_rgba(0, 0, 0, 1)
-        self.context.set_font_size(50)
-        self.context.move_to(start_point.x - 15, start_point.y - 15)
-        self.context.show_text('A')
-        self.context.move_to(end_point.x - 15, end_point.y - 15)
-        self.context.show_text('B')
+        # # Отображение букв для начальной и конечной точек
+        # # TODO: убрать этот кусок в релизе
+        # self.context.set_source_rgba(0, 0, 0, 1)
+        # self.context.set_font_size(50)
+        # self.context.move_to(start_point.x - 15, start_point.y - 15)
+        # self.context.show_text('A')
+        # self.context.move_to(end_point.x - 15, end_point.y - 15)
+        # self.context.show_text('B')
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
