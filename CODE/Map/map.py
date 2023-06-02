@@ -443,7 +443,7 @@ class MapBuilder:
 
         available_directions = {}
         # Ищем точки с прямым доступом в точку Б
-        really_interesting_points = []
+        really_interesting_points = 0
         for key in self.polygon_bounds.keys():
             if shapely.intersects(self.polygon_buffers[key], current_point):
                 available_directions[key] = self.average_directions[key]
@@ -482,16 +482,25 @@ class MapBuilder:
             for point in current_angles_keys:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     if rotation == 180:
-                        really_interesting_points.append(point)
+                        really_interesting_points += 1
+                    # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
+                    # + (разница направлений * вес направления) ** 2)
+                    angle_deviation = math.degrees(abs(angles[point] - angle_center_rad))
+                    distance = self.get_edge_distance(point, current_point)
+                    speed = self.average_speeds[key] / 10
+                    weight = math.sqrt(
+                        ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
+                        (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
+                    if rotation == 180:
+                        point, current_point = current_point, point
+
+                    # Обновляем вес существующего ребра, только если он больше нового
+                    data = self.graph.get_edge_data(current_point, point)
+                    if data is not None:
+                        if data['weight'] > weight:
+                            self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
+                                                angle_deviation=angle_deviation, distance=distance, speed=speed)
                     else:
-                        # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
-                        # + (разница направлений * вес направления) ** 2)
-                        angle_deviation = math.degrees(abs(angles[point] - angle_center_rad))
-                        distance = self.get_edge_distance(point, current_point)
-                        speed = self.average_speeds[key] / 10
-                        weight = math.sqrt(
-                            ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
-                            (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
                         self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
                                             angle_deviation=angle_deviation, distance=distance, speed=speed)
         if rotation == 180:
@@ -542,35 +551,14 @@ class MapBuilder:
         self.graph.add_node(end_point)
 
         really_interesting_points = self.visit_point(end_point, rotation=180)
-        # # Отображение завершающих узлов
-        # for point in really_interesting_points:
-        #     self.context.arc(point.x, point.y, 5, 0 * math.pi / 180, 360 * math.pi / 180)
-        #     self.context.set_source_rgba(0, 255, 255, 1)
-        #     self.context.fill()
-        print('Всего завершающих узлов:', len(really_interesting_points))
+        print('Всего завершающих узлов:', really_interesting_points)
 
-        # visited_points = 0
-        if len(really_interesting_points) != 0:
+        if really_interesting_points != 0:
             # Многопоточность позволяет немного уменьшить время выполнения
             if create_new_graph:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     executor.map(self.visit_point, self.intersection_points)
-            else:
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    executor.map(self.visit_point, really_interesting_points)
-                self.visit_point(current_point)
-
-            # while True:
-            #     self.visit_point(current_point)
-            #     if not create_new_graph:
-            #         break
-            #     if len(self.intersection_points) > visited_points:
-            #         current_point = self.intersection_points[visited_points]
-            #         visited_points += 1
-            #         print(len(self.intersection_points))
-            #         print(visited_points)
-            #     else:
-            #         break
+            self.visit_point(current_point)
         else:
             print('Конечная точка недостижима :(')
 
@@ -650,7 +638,7 @@ class MapBuilder:
                 speed_on_section.append(last_edge_data['speed'])
                 distance_of_section.append(last_edge_data['distance'])
 
-                angle_deviation_mean = angle_deviation_sum / len(path)
+                angle_deviation_mean = angle_deviation_sum / (len(path) - 1)
 
                 print()
                 print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
@@ -692,7 +680,7 @@ class MapBuilder:
         if not end_point_in_poly:
             self.graph.remove_node(end_point)
         # Если граф не был построен - обнуляем граф и его параметры
-        if len(really_interesting_points) == 0 and create_new_graph:
+        if really_interesting_points == 0 and create_new_graph:
             self.graph_params = {}
             self.graph = networkx.DiGraph()
         # # Отображение букв для начальной и конечной точек
