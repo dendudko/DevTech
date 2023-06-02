@@ -74,6 +74,11 @@ if __name__ == "__main__":
                     map_builder_loaded.graph_params = graph_params
                     map_builder_loaded.recalculate_edges()
                     map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=False)
+                else:
+                    map_builder_loaded.graph_params = graph_params
+                    map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=True)
+
+                print(map_builder_loaded.graph)
 
     except FileNotFoundError or EOFError:
         clustering(clustering_params)
@@ -83,6 +88,8 @@ if __name__ == "__main__":
             if find_path:
                 map_builder_loaded.graph_params = graph_params
                 map_builder_loaded.find_path(3850, 2500, 3400, 1200, create_new_graph=True)
+
+                print(map_builder_loaded.graph)
 
     # Обнуляем несериализуемые pickle поля
     map_builder_loaded.map_image = None
