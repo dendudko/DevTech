@@ -1,7 +1,5 @@
 from flask import Flask, render_template, request, jsonify
 from Main.main import *
-from PIL import Image
-import os
 
 app = Flask(__name__)
 
