@@ -120,10 +120,10 @@ def load_graph_params():
             graph_params = map_builder_loaded.graph_params
             if len(graph_params) == 0:
                 graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1,
-                                'weight_course_graph': 0.01}
+                                'weight_course_graph': 0.1}
     except FileNotFoundError or EOFError:
         graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1,
-                        'weight_course_graph': 0.01}
+                        'weight_course_graph': 0.1}
     return graph_params
 
 

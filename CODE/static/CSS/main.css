@@ -83,16 +83,17 @@ button:active {
     padding: 5px;
     left: 50px;
     width: fit-content;
+    max-width: 70%;
     height: fit-content;
     background-color: rgba(255, 255, 255, 0.6);
     border-radius: 5px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.4s ease-in-out;
+    transition: all 0.15s ease-in-out;
     z-index: 10;
 }
 
 #legend.hide {
-    bottom: -270px;
+    bottom: -500px;
 }
 
 #legend.show {

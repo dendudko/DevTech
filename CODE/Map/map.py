@@ -60,10 +60,10 @@ def astar_heuristic(a, b):
     return math.hypot(a.x - b.x, a.y - b.y)
 
 
-def get_hours_minutes_str(time):
+def get_hours_minutes_str(time_parameter):
     time_str = ''
-    hours = math.floor(time)
-    minutes = math.ceil((time % 1 * 60))
+    hours = math.floor(time_parameter)
+    minutes = math.ceil((time_parameter % 1 * 60))
     if hours > 0:
         if 10 <= hours % 100 <= 20 or 5 <= hours % 10 <= 9 or hours % 10 == 0:
             time_str += str(hours) + ' часов '
@@ -646,6 +646,8 @@ class MapBuilder:
 
                 angle_deviation_mean = angle_deviation_sum / (len(path) - 1)
 
+                path_log = [self.get_lat_lon_from_img_coords(point.x, point.y) for point in path]
+
                 result_graph['Протяженность маршрута'] = f'{str(round(distance, 3))} (м. мили)'
                 result_graph['Примерное время прохождения маршрута'] = f'{get_hours_minutes_str(time_sum)}'
                 result_graph['Среднее отклонение от курсов на маршруте'] = f'{str(round(angle_deviation_mean, 1))}°'
@@ -655,6 +657,7 @@ class MapBuilder:
                 result_graph[
                     'Отклонения от курсов на участках'] = f'{[round(angle, 1) for angle in angle_deviation_on_section]} (°)'
                 result_graph['Характеристики графа'] = str(self.graph)
+                result_graph['Точки маршрута'] = str(path_log)
 
                 # print()
                 # print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
@@ -674,10 +677,14 @@ class MapBuilder:
                 # print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
             # print('Маршрут найти не удалось :(')
-            result_graph['error'] = 'Маршрут найти не удалось!'
+            result_graph['Error'] = 'Маршрут найти не удалось!'
+            result_graph['Точка отправления'] = self.get_lat_lon_from_img_coords(start_point.x, start_point.y)
+            result_graph['Точка прибытия'] = self.get_lat_lon_from_img_coords(end_point.x, end_point.y)
         except networkx.exception.NodeNotFound:
             # print('Для начальной точки нет доступных узлов :(')
-            result_graph['error'] = 'Для начальной точки нет доступных узлов!'
+            result_graph['Error'] = 'Для начальной точки нет доступных узлов!'
+            result_graph['Точка отправления'] = self.get_lat_lon_from_img_coords(start_point.x, start_point.y)
+            result_graph['Точка прибытия'] = self.get_lat_lon_from_img_coords(end_point.x, end_point.y)
 
         # Выделение точек начала и конца
         self.context.set_line_width(0)
@@ -704,13 +711,19 @@ class MapBuilder:
 
         return result_graph
 
-    def get_img_coords_from_lon_lat(self, x_point, y_point):
+    def get_img_coords_from_lon_lat(self, lon, lat):
         # gps в меркатор
-        xy = mercantile.xy(x_point, y_point)
+        xy = mercantile.xy(lon, lat)
         # переводим xy в координаты изображения
-        x_point = (xy[0] - self.left_top[0]) * self.kx
-        y_point = (xy[1] - self.left_top[1]) * self.ky
-        return x_point, y_point
+        x = (xy[0] - self.left_top[0]) * self.kx
+        y = (xy[1] - self.left_top[1]) * self.ky
+        return x, y
+
+    def get_lat_lon_from_img_coords(self, x, y):
+        web_x = x / self.kx + self.left_top[0]
+        web_y = y / self.ky + self.left_top[1]
+        lon, lat = mercantile.lnglat(web_x, web_y)
+        return lat, lon
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
@@ -725,7 +738,6 @@ class MapBuilder:
             if save_mode == 'clusters':
                 self.show_points(frac=1)
             elif save_mode == 'polygons':
-                self.show_points(frac=1)
                 self.show_polygons()
                 self.show_intersections()
                 self.show_average_directions()
@@ -733,18 +745,17 @@ class MapBuilder:
             clusters_img.append(self.save_clustered_image())
 
         log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
-        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n\n'
+        with open('./static/logs/DBSCAN_log.txt', 'a') as log_file:
+            log_file.write('Параметры для DBSCAN: ' + str(self.clustering_params) + '\n')
+            log_file.write(log)
+
         result_clustering['Всего кластеров'] = f'{str(self.cluster_count)}'
         result_clustering['Доля шума'] = f'{str(self.noise_count)} / {str(self.total_count)}'
         # print(clusters_img)
         # print(log)
 
         return clusters_img, result_clustering
-
-        # Перевод координат изображения в координаты веб-меркатора
-        # lat = self.left_top[0] + 3500 / self.kx
-        # lon = self.left_top[1] + 1450 / self.ky
-        # print(lon, lat)
 
     def find_path(self, x_start, y_start, x_end, y_end, create_new_graph):
         self.create_empty_map()
@@ -764,5 +775,15 @@ class MapBuilder:
                                         create_new_graph=create_new_graph)
         self.save_mode = 'path'
         graph_img = self.save_clustered_image()
+
+        log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
+        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        with open('./static/logs/PATH_log.txt', 'a') as log_file:
+            log_file.write('Параметры для DBSCAN: ' + str(self.clustering_params) + '\n')
+            log_file.write(log)
+            log_file.write('Параметры для графа: ' + str(self.graph_params) + '\n')
+            for key, value in result_graph.items():
+                log_file.write(str(key) + ': ' + str(value) + '\n')
+            log_file.write('\n')
 
         return graph_img, result_graph

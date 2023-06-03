@@ -83,14 +83,14 @@
 
         <div class="buttons">
             <button type="submit" id="do_graph" onclick="Create_graph()">
-                Визуализировать маршрут
+                Построить граф и проложить маршрут
             </button>
         </div>
     </div>
 
     <div class="map_block">
         <div id="map" class="map"></div>
-        <div id="legend">
+        <div id="legend" class="hide">
             <div>Сначала необходимо кластеризовать
                 данные!
             </div>
@@ -333,7 +333,7 @@
 
     setPoints();
 
-    //Обработка кнопки Визуализация маршрута
+    //Обработка кнопки "Построить граф и проложить маршрут"
     function Create_graph() {
 
         let polyLayerExists = false;
@@ -444,8 +444,8 @@
                     }
 
                     let item = document.createElement('div');
-                    if ('error' in graph_data) {
-                        item.innerHTML = '<br><strong>' + graph_data['error'] + '</strong>' + '<br>';
+                    if ('Error' in graph_data) {
+                        item.innerHTML = '<br><strong>' + graph_data['Error'] + '</strong>' + '<br>';
                     } else {
                         item.innerHTML =
                             '<br>' + '<strong>Среднее отклонение от курсов на маршруте</strong>: ' + graph_data['Среднее отклонение от курсов на маршруте'] +
@@ -454,8 +454,8 @@
                             '<br><br>' + '<strong>Отклонения от курсов на участках</strong>: ' + graph_data['Отклонения от курсов на участках'] +
                             '<br>' + '<strong>Скорость на участках</strong>: ' + graph_data['Скорость на участках'] +
                             '<br>' + '<strong>Протяженность участков</strong>: ' + graph_data['Протяженность участков'] +
-                            '<br><br>' + '<strong>Характеристики графа</strong>: ' + graph_data['Характеристики графа'] + '<br>';
-
+                            '<br><br>' + '<strong>Характеристики графа</strong>: ' + graph_data['Характеристики графа'] +
+                            '<br>' + '<strong>Точки маршрута</strong>: ' + graph_data['Точки маршрута'] + '<br>';
                     }
 
                     legend.appendChild(item);
