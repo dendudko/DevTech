@@ -1,3 +1,4 @@
+Flask==2.3.2
 mercantile==1.2.1
 mpu==0.23.1
 networkx==3.1
@@ -6,6 +7,3 @@ pandas==2.0.2
 pycairo==1.23.0
 scikit_learn==1.2.2
 Shapely==2.0.1
-
-Flask==2.3.2
-Pillow~=9.5.0
