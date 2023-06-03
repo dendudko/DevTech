@@ -556,7 +556,7 @@ class MapBuilder:
         self.graph.add_node(end_point)
 
         really_interesting_points = self.visit_point(end_point, rotation=180)
-        print('Всего завершающих узлов:', really_interesting_points)
+        # print('Всего завершающих узлов:', really_interesting_points)
 
         if really_interesting_points != 0:
             # Многопоточность позволяет немного уменьшить время выполнения
@@ -565,8 +565,8 @@ class MapBuilder:
                     executor.map(self.visit_point, self.intersection_points)
             else:
                 self.visit_point(current_point)
-        else:
-            print('Конечная точка недостижима :(')
+        # else:
+            # print('Конечная точка недостижима :(')
 
         if end_point_saved:
             end_point = end_point_saved
@@ -656,27 +656,27 @@ class MapBuilder:
                     'Отклонения от курсов на участках'] = f'{[round(angle, 1) for angle in angle_deviation_on_section]} (°)'
                 result_graph['Характеристики графа'] = str(self.graph)
 
-                print()
-                print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
-                print('Протяженность маршрута:', str(round(distance, 3)), '(м. мили)')
-                print('Примерное время прохождения маршрута:', get_hours_minutes_str(time_sum))
-                print()
-                print('Отклонения от курсов на участках:',
-                      [round(angle, 1) for angle in angle_deviation_on_section], '(°)')
-                print('Скорость на участках:', [round(speed, 1) for speed in speed_on_section], '(узлы)')
-                print('Протяженность участков:', [round(distance, 3) for distance in distance_of_section], '(м. мили)')
-                print()
+                # print()
+                # print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
+                # print('Протяженность маршрута:', str(round(distance, 3)), '(м. мили)')
+                # print('Примерное время прохождения маршрута:', get_hours_minutes_str(time_sum))
+                # print()
+                # print('Отклонения от курсов на участках:',
+                #       [round(angle, 1) for angle in angle_deviation_on_section], '(°)')
+                # print('Скорость на участках:', [round(speed, 1) for speed in speed_on_section], '(узлы)')
+                # print('Протяженность участков:', [round(distance, 3) for distance in distance_of_section], '(м. мили)')
+                # print()
 
                 self.context.set_source_rgba(color[0], color[1], color[2], color[3])
                 self.context.move_to(path[-2].x, path[-2].y)
                 self.context.line_to(path[-1].x, path[-1].y)
                 self.context.stroke()
-                print('Маршрут успешно построен :)')
+                # print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
-            print('Маршрут найти не удалось :(')
+            # print('Маршрут найти не удалось :(')
             result_graph['error'] = 'Маршрут найти не удалось!'
         except networkx.exception.NodeNotFound:
-            print('Для начальной точки нет доступных узлов :(')
+            # print('Для начальной точки нет доступных узлов :(')
             result_graph['error'] = 'Для начальной точки нет доступных узлов!'
 
         # Выделение точек начала и конца
@@ -737,7 +737,7 @@ class MapBuilder:
         result_clustering['Всего кластеров'] = f'{str(self.cluster_count)}'
         result_clustering['Доля шума'] = f'{str(self.noise_count)} / {str(self.total_count)}'
         # print(clusters_img)
-        print(log)
+        # print(log)
 
         return clusters_img, result_clustering
 

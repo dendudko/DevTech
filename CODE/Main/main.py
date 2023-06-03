@@ -90,7 +90,7 @@ def call_find_path(graph_params, coords):
             map_builder_loaded.graph_params = graph_params
             graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
                                                      coords['end_lat'], create_new_graph=True)
-        print(map_builder_loaded.graph)
+        # print(map_builder_loaded.graph)
 
     except FileNotFoundError or EOFError:
         clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29,
@@ -102,7 +102,7 @@ def call_find_path(graph_params, coords):
         map_builder_loaded.graph_params = graph_params
         graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
                                                  coords['end_lat'], create_new_graph=True)
-        print(map_builder_loaded.graph)
+        # print(map_builder_loaded.graph)
 
     # Обнуляем несериализуемые pickle поля
     map_builder_loaded.map_image = None
