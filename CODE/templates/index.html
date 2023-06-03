@@ -39,7 +39,7 @@
 
             <label title="максимальное расстояние (по метрике) между объектами для признания их соседними в алгоритме DBSCAN"
                    class="clusterization-label">eps</label>
-            <input type="number" step="0.1" required value="{{ clustering_params['eps'] }}" id="eps"
+            <input type="number" step="0.001" required value="{{ clustering_params['eps'] }}" id="eps"
                    class="clusterization-input"/>
 
             <label title="минимальное число соседей, необходимое для признания объекта ядровым в алгоритме DBSCAN"
@@ -69,7 +69,7 @@
                    id="weight_time_graph" class="route-input"/>
 
             <label title="вес соответствия направления среднекластерному для ребер графа " class="route-label">weight_course</label>
-            <input type="number" step="0.1" required value="{{ graph_params['weight_course_graph'] }}"
+            <input type="number" step="0.01" required value="{{ graph_params['weight_course_graph'] }}"
                    id="weight_course_graph" class="route-input"/>
 
             <label title="начальная точка маршрута" class="route-label">start_coords</label>
@@ -134,7 +134,6 @@
             extent: extent
         }),
         controls: ol.control.defaults().extend([
-            new ol.control.ZoomSlider(),
             new ol.control.FullScreen(),
             // Добавление элемента управления для легенды
             new ol.control.Control({
@@ -142,7 +141,6 @@
             })
         ])
     });
-
 
 
     //Функция границ карты (проблемы при наложении других изобраажений - возомжно, надо отформатировать)
@@ -170,16 +168,9 @@
     {#resChange();#}
 
 
-
     map.addControl(new ol.control.LayerSwitcher({
         reverse: false
     }));
-
-    var ZoomSlider = new ol.control.ZoomSlider({
-        maxResolution: 10, // максимальный масштаб, при котором будет отображен ползунок зума
-        minResolution: 1000, // минимальный масштаб, при котором будет отображен ползунок зума
-    });
-    map.addControl(ZoomSlider);
 
     //Создание легенды
     var legendShown = false;
@@ -344,10 +335,13 @@
 
     //Обработка кнопки Визуализация маршрута
     function Create_graph() {
+
         let polyLayerExists = false;
         let allLayers = map.getLayers().getArray();
+
+        {#Проверка на начальную кластеризацию данных#}
         for (let i = 0; i < allLayers.length; i++) {
-            if (allLayers[i].get('name') === 'PolygonsForGraph') {
+            if (allLayers[i].get('name') === 'Polygons') {
                 polyLayerExists = true;
                 break;
             }
@@ -428,7 +422,7 @@
                     map.addLayer(EndPoint);
 
 
-                    const names = ["Clusters", "Polygons", "PolygonsForGraph", "Ships"];
+                    const names = ["Clusters", "Polygons", "Ships"];
                     names.forEach(name => {
                         const layers = map.getLayers().getArray();
                         layers.forEach(layer => {
@@ -459,7 +453,8 @@
                             '<br>' + '<strong>Примерное время прохождения маршрута</strong>: ' + graph_data['Примерное время прохождения маршрута'] +
                             '<br><br>' + '<strong>Отклонения от курсов на участках</strong>: ' + graph_data['Отклонения от курсов на участках'] +
                             '<br>' + '<strong>Скорость на участках</strong>: ' + graph_data['Скорость на участках'] +
-                            '<br>' + '<strong>Протяженность участков</strong>: ' + graph_data['Протяженность участков'] + '<br>';
+                            '<br>' + '<strong>Протяженность участков</strong>: ' + graph_data['Протяженность участков'] +
+                            '<br><br>' + '<strong>Характеристики графа</strong>: ' + graph_data['Характеристики графа'] + '<br>';
 
                     }
 
@@ -475,7 +470,7 @@
         }
     }
 
-    //Обработка кнопки Кластеризовать данные
+    //Обработка кнопки "Кластеризовать данные"
     function Do_clustering() {
         document.querySelector('.red_text').style.cssText = '';
         // Получаем значения полей ввода
@@ -504,7 +499,7 @@
             success: function (data) {
                 const ClustersLayer = new ol.layer.Image({
                     name: 'Clusters',
-                    visible: true,
+                    visible: false,
                     source: new ol.source.ImageStatic({
                         url: data[0][0], // URL PNG-изображения
                         imageSize: [5983, 4143], // Размер изображения
@@ -522,19 +517,17 @@
                         imageExtent: extent,
                     })
                 });
-                const PolygonsForGraphLayer = new ol.layer.Image({
-                    name: 'PolygonsForGraph',
-                    visible: true,
-                    source: new ol.source.ImageStatic({
-                        url: data[0][2], // URL PNG-изображения
-                        imageSize: [5983, 4143], // Размер изображения
-                        projection: projection,
-                        imageExtent: extent,
-                    })
+
+
+                const layers = map.getLayers().getArray();
+                layers.forEach(layer => {
+                    if (layer.get('name') === "Ships") {
+                        layer.setVisible(false);
+                    }
                 });
 
                 // Удаляем старые слои с карты
-                const names = ["Clusters", "Polygons", "PolygonsForGraph", "Graph", "StartPoint", "EndPoint"];
+                const names = ["Clusters", "Polygons", "Graph", "StartPoint", "EndPoint"];
                 names.forEach(name => {
                     const layers = map.getLayers().getArray();
                     layers.forEach(layer => {
@@ -546,7 +539,6 @@
 
                 map.addLayer(ClustersLayer);
                 map.addLayer(PolygonsLayer);
-                map.addLayer(PolygonsForGraphLayer);
                 document.getElementById("start_coords").value = "";
                 document.getElementById("end_coords").value = "";
 

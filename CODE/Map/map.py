@@ -654,6 +654,7 @@ class MapBuilder:
                 result_graph['Скорость на участках'] = f'{[round(speed, 1) for speed in speed_on_section]} (узлы)'
                 result_graph[
                     'Отклонения от курсов на участках'] = f'{[round(angle, 1) for angle in angle_deviation_on_section]} (°)'
+                result_graph['Характеристики графа'] = str(self.graph)
 
                 print()
                 print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
@@ -702,14 +703,6 @@ class MapBuilder:
             self.graph = networkx.DiGraph()
 
         return result_graph
-        # # Отображение букв для начальной и конечной точек
-        # # TODO: убрать этот кусок в релизе
-        # self.context.set_source_rgba(0, 0, 0, 1)
-        # self.context.set_font_size(50)
-        # self.context.move_to(start_point.x - 15, start_point.y - 15)
-        # self.context.show_text('A')
-        # self.context.move_to(end_point.x - 15, end_point.y - 15)
-        # self.context.show_text('B')
 
     def get_img_coords_from_lon_lat(self, x_point, y_point):
         # gps в меркатор
@@ -725,7 +718,7 @@ class MapBuilder:
         # Удаляю шум, не уверен, стоит ли
         # self.delete_noise()
         clusters_img = []
-        for save_mode in 'clusters', 'polygons', 'polygons4graph':
+        for save_mode in 'clusters', 'polygons':
             self.create_empty_map()
             self.calculate_points_on_image()
             # frac - можно выбрать, какую долю объектов нанести на карту
@@ -735,11 +728,7 @@ class MapBuilder:
                 self.show_points(frac=1)
                 self.show_polygons()
                 self.show_intersections()
-            elif save_mode == 'polygons4graph':
-                self.show_polygons()
-                self.show_intersections()
                 self.show_average_directions()
-                self.show_intersection_points()
             self.save_mode = save_mode
             clusters_img.append(self.save_clustered_image())
 
@@ -747,7 +736,7 @@ class MapBuilder:
         log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
         result_clustering['Всего кластеров'] = f'{str(self.cluster_count)}'
         result_clustering['Доля шума'] = f'{str(self.noise_count)} / {str(self.total_count)}'
-        print(clusters_img)
+        # print(clusters_img)
         print(log)
 
         return clusters_img, result_clustering
