@@ -138,10 +138,10 @@
             // Добавление элемента управления для легенды
             new ol.control.Control({
                 element: document.getElementById('legend')
-            })
+            }),
+            new ol.control.ZoomToExtent(extent)
         ])
     });
-
 
     //Функция границ карты (проблемы при наложении других изобраажений - возомжно, надо отформатировать)
     {#var extent = map.getView().calculateExtent();#}

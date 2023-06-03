@@ -169,3 +169,7 @@ button:active {
     }
 }
 
+.map .ol-rotate {
+    top: 6.2em;
+}
+
