@@ -1,0 +1,577 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Дипломная работа</title>
+
+    <link rel="stylesheet" href="https://openlayers.org/en/v4.6.5/css/ol.css" type="text/css">
+    <link rel="stylesheet" href="/static/CSS/main.css" type="text/css">
+    <script src="https://openlayers.org/en/v4.6.5/build/ol.js"></script>
+    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL,Object.assign"></script>
+    <link rel="stylesheet" href="https://cdn.rawgit.com/Viglino/ol-ext/master/dist/ol-ext.min.css"/>
+    <script type="text/javascript" src="https://cdn.rawgit.com/Viglino/ol-ext/master/dist/ol-ext.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"
+            integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+"
+            crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.2/socket.io.js"></script>
+</head>
+
+<body>
+<div class="container">
+    <div id="loader" style="display:none;"></div>
+
+    <div class="input_block">
+        <div class="clusterization-title">Кластеризация</div>
+        <div class="clusterization-inputs">
+
+            <label title="вес расстояния для метрики DBSCAN" class="clusterization-label">weight_distance</label>
+            <input type="number" step="0.1" required value="{{ clustering_params['weight_distance'] }}"
+                   id="weight_distance" class="clusterization-input"/>
+
+            <label title="вес скорости для метрики DBSCAN" class="clusterization-label">weight_speed</label>
+            <input type="number" step="0.1" required value="{{ clustering_params['weight_speed'] }}" id="weight_speed"
+                   class="clusterization-input"/>
+
+            <label title=" вес курса для метрики DBSCAN" class="clusterization-label">weight_course</label>
+            <input type="number" step="0.1" required value="{{ clustering_params['weight_course'] }}" id="weight_course"
+                   class="clusterization-input"/>
+
+            <label title="максимальное расстояние (по метрике) между объектами для признания их соседними в алгоритме DBSCAN"
+                   class="clusterization-label">eps</label>
+            <input type="number" step="0.1" required value="{{ clustering_params['eps'] }}" id="eps"
+                   class="clusterization-input"/>
+
+            <label title="минимальное число соседей, необходимое для признания объекта ядровым в алгоритме DBSCAN"
+                   class="clusterization-label">min_samples</label>
+            <input type="number" required value="{{ clustering_params['min_samples'] }}" id="min_samples"
+                   class="clusterization-input"/>
+        </div>
+        <div class="buttons">
+            <button type="submit" id="do_cluster" class="red_text" style="cursor: pointer " onclick="Do_clustering()">
+                Кластеризовать данные и выделить полигоны
+            </button>
+        </div>
+
+        <div class="route-title">Построение маршрута</div>
+
+        <div class="route-inputs">
+            <label title="расстояние между генерируемыми точками в пересечениях полигонов" class="route-label">distance_delta</label>
+            <input type="number" step="0.1" required value="{{ graph_params['distance_delta'] }}" id="distance_delta"
+                   class="route-input"/>
+
+            <label title="угол обзора для узла, в пределах которого возможно добавить ребра в граф" class="route-label">angle_of_vision</label>
+            <input type="number" step="0.1" required value="{{ graph_params['angle_of_vision'] }}" id="angle_of_vision"
+                   class="route-input"/>
+
+            <label title="вес времени прохождения для ребер графа" class="route-label">weight_time</label>
+            <input type="number" step="0.1" required value="{{ graph_params['weight_time_graph'] }}"
+                   id="weight_time_graph" class="route-input"/>
+
+            <label title="вес соответствия направления среднекластерному для ребер графа " class="route-label">weight_course</label>
+            <input type="number" step="0.1" required value="{{ graph_params['weight_course_graph'] }}"
+                   id="weight_course_graph" class="route-input"/>
+
+            <label title="начальная точка маршрута" class="route-label">start_coords</label>
+            <input style="cursor: pointer;" type="text" id="start_coords" readonly required placeholder="Клик на карте"
+                   class="route-input"/>
+
+            <label title="конечная точка маршрута" class="route-label">end_coords</label>
+            <input style="cursor: pointer;" type="text" id="end_coords" readonly required placeholder="Клик на карте"
+                   class="route-input"/>
+        </div>
+
+        <div class="buttons">
+            <button type="submit" id="do_graph" onclick="Create_graph()">
+                Визуализировать маршрут
+            </button>
+        </div>
+    </div>
+
+    <div class="map_block">
+        <div id="map" class="map"></div>
+        <div id="legend">
+            <div>Сначала необходимо кластеризовать
+                данные!
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script type="text/javascript">
+    //Создание карты
+    var extent = [15522946.393668033, 5002641.018067474, 15751596.627757415, 5160979.444049783];
+    var projection = new ol.proj.Projection({
+        code: 'xkcd-image',
+        units: 'pixels',
+        extent: extent,
+    });
+    var vectorLayer = new ol.layer.Vector({
+        source: new ol.source.Vector(),
+    });
+
+    var map = new ol.Map({
+        pixelRatio: 2,
+        target: 'map', // ID элемента на странице, где отобразить карту
+        layers: [
+            new ol.layer.Image({
+                name: 'Ships',
+                visible: true,
+                source: new ol.source.ImageStatic({
+                    url: '/static/images/clean/all_merged_with_points.png', // карта с кораблями
+                    imageSize: [5983, 4143], // Размер изображения
+                    projection: projection,
+                    imageExtent: extent,
+                })
+            }),
+        ],
+        view: new ol.View({
+            projection: projection,
+            center: ol.extent.getCenter(extent), // Координаты центра карты
+            zoom: 2, // Масштаб карты
+            minZoom: 2,
+            maxZoom: 5,
+            extent: extent
+        }),
+        controls: ol.control.defaults().extend([
+            new ol.control.ZoomSlider(),
+            new ol.control.FullScreen(),
+            // Добавление элемента управления для легенды
+            new ol.control.Control({
+                element: document.getElementById('legend')
+            })
+        ])
+    });
+
+
+
+    //Функция границ карты (проблемы при наложении других изобраажений - возомжно, надо отформатировать)
+    {#var extent = map.getView().calculateExtent();#}
+    {#var resolution = 0;#}
+    {#function resChange() {#}
+    {#    var newResolution = map.getView().getResolution();#}
+    {#    console.log(newResolution)#}
+    {#    if (resolution == 0 || Math.abs((newResolution - resolution) / resolution) > 0.001) {#}
+    {#        resolution = newResolution;#}
+    {#        var width = map.getSize()[0] * resolution;#}
+    {#        var height = map.getSize()[1] * resolution;#}
+    {#        var view = new ol.View({#}
+    {#            projection: map.getView().getProjection(),#}
+    {#            extent: [extent[0] + (width / 2), extent[1] + (height / 2), extent[2] - (width / 2), extent[3] - (height / 2)],#}
+    {#            center: map.getView().getCenter(),#}
+    {#            resolution: resolution,#}
+    {#            maxZoom: map.getView().getMaxZoom(),#}
+    {#            minZoom: map.getView().getMinZoom()#}
+    {#        });#}
+    {#        view.on('change:resolution', resChange);#}
+    {#        map.setView(view);#}
+    {#    }#}
+    //}
+    {#resChange();#}
+
+
+
+    map.addControl(new ol.control.LayerSwitcher({
+        reverse: false
+    }));
+
+    var ZoomSlider = new ol.control.ZoomSlider({
+        maxResolution: 10, // максимальный масштаб, при котором будет отображен ползунок зума
+        minResolution: 1000, // минимальный масштаб, при котором будет отображен ползунок зума
+    });
+    map.addControl(ZoomSlider);
+
+    //Создание легенды
+    var legendShown = false;
+
+    function hideLegend() {
+        document.getElementById('legend').className = 'hide';
+        legendShown = false;
+    }
+
+    function showLegend() {
+        document.getElementById('legend').className = 'show';
+        legendShown = true;
+    }
+
+    var button = new ol.control.Button({
+        className: 'ol-legend ol-unselectable ol-control ol-collapsed', // класс для стилизации кнопки
+        title: 'Данные работы алгоритма', // всплывающая подсказка для кнопки
+        handleClick: function () { // ваша функция для обработки клика на кнопке
+            if (legendShown) {
+                document.getElementById('legend').className = 'hide';
+                legendShown = false;
+            } else {
+                document.getElementById('legend').className = 'show';
+                legendShown = true;
+            }
+        },
+    });
+    map.addControl(button); // добавление кнопки на карту
+    var legend = document.getElementById('legend');
+    map.getViewport().appendChild(legend);
+
+    //Забавы с курсором
+    map.getViewport().style.cursor = "auto";
+    //Ладошка
+    {#map.getViewport().style.cursor = "-webkit-grab";#}
+    map.on('pointerdrag', function (evt) {
+        map.getViewport().style.cursor = "-webkit-grabbing";
+    });
+    map.on('pointerup', function (evt) {
+        map.getViewport().style.cursor = "auto";
+    });
+
+    const startCoordsEl = document.querySelector('#start_coords');
+    const EndCoordsEl = document.querySelector('#end_coords');
+    startCoordsEl.addEventListener('click', function () {
+        map.getViewport().style.cursor = 'pointer';
+    });
+    EndCoordsEl.addEventListener('click', function () {
+        map.getViewport().style.cursor = 'pointer';
+    });
+
+    //Заполнение полей координат
+    function setPoints() {
+        let startPointInput = document.getElementById("start_coords");
+        let endPointInput = document.getElementById("end_coords");
+        const routeBtn = document.getElementById('do_graph');
+        routeBtn.addEventListener('click', () => {
+            startPointInput.style.display = 'inline';
+            endPointInput.style.display = 'inline';
+        });
+        var checkFocus = (el) => el === document.querySelector(':focus');
+        var onfocus = 0;
+        window.addEventListener('click', e => {
+            if (checkFocus(start_coords)) {
+                onfocus = 1;
+            } else if (checkFocus(end_coords)) {
+                onfocus = 2;
+            }
+
+
+            map.on('click', function (evt) {
+                let layers = map.getLayers().getArray();
+                let coords = ol.proj.toLonLat(evt.coordinate).map(coord => coord.toFixed(6));
+
+                if (onfocus === 1) {
+                    startPointInput.value = coords.toString();
+
+                    var StartPointLayer = null;
+
+                    for (let i = 0; i < layers.length; i++) {
+                        if (layers[i].get('name') === 'StartPoint') {
+                            StartPointLayer = layers[i];
+                            break;
+                        }
+                    }
+
+                    if (StartPointLayer) {
+                        map.removeLayer(StartPointLayer);
+                    }
+
+                    const StartPoint = new ol.layer.Vector({
+                        name: 'StartPoint',
+                        source: new ol.source.Vector({
+                            features: [
+                                new ol.Feature({
+                                    geometry: new ol.geom.Point(evt.coordinate),
+                                })
+                            ]
+                        }),
+                        style: new ol.style.Style({
+                            image: new ol.style.Icon({
+                                anchor: [0.5, 1],
+                                crossOrigin: 'anonymous',
+                                scale: 0.07, // Установка масштаба иконки
+                                src: '/static/images/markers/start_point.png',
+                            })
+                        })
+                    });
+
+                    map.addLayer(StartPoint);
+                    onfocus = null;
+                    map.getViewport().style.cursor = "auto";
+
+
+                } else if (onfocus === 2) {
+                    endPointInput.value = coords.toString();
+
+                    var endPointLayer = null;
+                    for (let i = 0; i < layers.length; i++) {
+                        if (layers[i].get('name') === 'EndPoint') {
+                            endPointLayer = layers[i];
+                            break;
+                        }
+                    }
+
+                    if (endPointLayer) {
+                        map.removeLayer(endPointLayer);
+                    }
+
+                    const EndPoint = new ol.layer.Vector({
+                        name: 'EndPoint',
+                        source: new ol.source.Vector({
+                            features: [
+                                new ol.Feature({
+                                    geometry: new ol.geom.Point(evt.coordinate),
+                                })
+                            ]
+                        }),
+                        style: new ol.style.Style({
+                            image: new ol.style.Icon({
+                                anchor: [0.5, 1],
+                                crossOrigin: 'anonymous',
+                                scale: 0.07, // Установка масштаба иконки
+
+                                src: '/static/images/markers/end_point.png',
+                            })
+                        })
+                    });
+
+                    map.addLayer(EndPoint);
+                    onfocus = null;
+                    map.getViewport().style.cursor = "auto";
+
+
+                }
+
+            });
+        });
+    }
+
+    setPoints();
+
+    //Обработка кнопки Визуализация маршрута
+    function Create_graph() {
+        let polyLayerExists = false;
+        let allLayers = map.getLayers().getArray();
+        for (let i = 0; i < allLayers.length; i++) {
+            if (allLayers[i].get('name') === 'PolygonsForGraph') {
+                polyLayerExists = true;
+                break;
+            }
+        }
+        if (!polyLayerExists) {
+            document.querySelector('.red_text').style.cssText = 'box-shadow: 0px 0px 3px 3px #91B44AB2;';
+            alert("Сначала необходимо кластеризовать данные");
+        } else {
+            // Получаем значения полей ввода
+            const fields = ['distance_delta', 'angle_of_vision', 'weight_time_graph', 'weight_course_graph', 'start_coords', 'end_coords'];
+            const parameters_for_graph = {};
+            let allFieldsFilled = true;
+            var alert_list = []
+            fields.forEach(field => {
+                const value = document.getElementById(field).value;
+                if (!value) {
+                    allFieldsFilled = false
+                    alert_list.push(field)
+                }
+                parameters_for_graph[field] = value;
+            });
+
+
+            // Если не все поля заполнены, выходим из функции
+            if (!allFieldsFilled) return alert("Остались незаполненные поля: " + alert_list);
+            if (!allFieldsFilled) return;
+
+            if (parameters_for_graph['start_coords'] === parameters_for_graph['end_coords']) {
+                return alert("Упс! Начальная точка совпадает с конечной. ")
+            }
+
+            $("#loader").show();
+
+            $.ajax({
+                type: 'POST',
+                url: '/get_graphs_parameters',
+                contentType: 'application/json',
+                data: JSON.stringify(parameters_for_graph),
+                success: function (data) {
+
+                    let allLayers = map.getLayers().getArray();
+                    for (let i = 0; i < allLayers.length; i++) {
+                        if (allLayers[i].get('name') === 'Graph') {
+                            map.removeLayer(allLayers[i]);
+                            break
+                        }
+                    }
+
+                    const GraphLayer = new ol.layer.Image({
+                        name: 'Graph',
+                        visible: true,
+                        source: new ol.source.ImageStatic({
+                            url: data[0], // URL PNG-изображения
+                            imageSize: [5983, 4143], // Размер изображения
+                            projection: projection,
+                            imageExtent: extent,
+                        })
+                    })
+
+                    for (let i = 0; i < allLayers.length; i++) {
+                        if (allLayers[i].get('name') === 'StartPoint') {
+                            var StartPoint = allLayers[i]
+                            map.removeLayer(allLayers[i]);
+                            break;
+                        }
+                    }
+                    for (let i = 0; i < allLayers.length; i++) {
+                        if (allLayers[i].get('name') === 'EndPoint') {
+                            var EndPoint = allLayers[i]
+                            map.removeLayer(allLayers[i]);
+                            break;
+                        }
+                    }
+
+
+                    map.addLayer(GraphLayer);
+                    map.addLayer(StartPoint);
+                    map.addLayer(EndPoint);
+
+
+                    const names = ["Clusters", "Polygons", "PolygonsForGraph", "Ships"];
+                    names.forEach(name => {
+                        const layers = map.getLayers().getArray();
+                        layers.forEach(layer => {
+                            if (layer.get('name') === name) {
+                                layer.setVisible(false);
+                            }
+                        });
+                    });
+
+
+                    //Заполнение легенды данными из вычислительной части
+                    graph_data = data[1]
+                    let legend = document.getElementById('legend');
+
+                    //Перезаполнение при выборе других маршрутов
+                    let divsToRemove = legend.querySelectorAll('div:not(:first-child)');
+                    for (let i = 0; i < divsToRemove.length; i++) {
+                        legend.removeChild(divsToRemove[i]);
+                    }
+
+                    let item = document.createElement('div');
+                    if ('error' in graph_data) {
+                        item.innerHTML = '<br><strong>' + graph_data['error'] + '</strong>' + '<br>';
+                    } else {
+                        item.innerHTML =
+                            '<br>' + '<strong>Среднее отклонение от курсов на маршруте</strong>: ' + graph_data['Среднее отклонение от курсов на маршруте'] +
+                            '<br>' + '<strong>Протяженность маршрута</strong>: ' + graph_data['Протяженность маршрута'] +
+                            '<br>' + '<strong>Примерное время прохождения маршрута</strong>: ' + graph_data['Примерное время прохождения маршрута'] +
+                            '<br><br>' + '<strong>Отклонения от курсов на участках</strong>: ' + graph_data['Отклонения от курсов на участках'] +
+                            '<br>' + '<strong>Скорость на участках</strong>: ' + graph_data['Скорость на участках'] +
+                            '<br>' + '<strong>Протяженность участков</strong>: ' + graph_data['Протяженность участков'] + '<br>';
+
+                    }
+
+                    legend.appendChild(item);
+                    $("#loader").hide();
+
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    $("#loader").hide();
+                    return alert("Error status: " + textStatus + "\nError thrown: " + errorThrown);
+                }
+            });
+        }
+    }
+
+    //Обработка кнопки Кластеризовать данные
+    function Do_clustering() {
+        document.querySelector('.red_text').style.cssText = '';
+        // Получаем значения полей ввода
+        const fields = ['weight_distance', 'weight_speed', 'weight_course', 'eps', 'min_samples'];
+        var parameters_for_DBSCAN = {};
+        let allFieldsFilled = true;
+        var alert_list = []
+        fields.forEach(field => {
+            const value = document.getElementById(field).value;
+            if (!value) {
+                allFieldsFilled = false
+                alert_list.push(field);
+            }
+            parameters_for_DBSCAN[field] = value;
+        });
+        // Если не все поля заполнены, выходим из функции
+        if (!allFieldsFilled) return alert("Остались незаполненные поля: " + alert_list);
+        if (!allFieldsFilled) return;
+
+        $("#loader").show();
+        $.ajax({
+            type: 'POST',
+            url: '/get_DBSCAN_parameters',
+            contentType: 'application/json',
+            data: JSON.stringify(parameters_for_DBSCAN),
+            success: function (data) {
+                const ClustersLayer = new ol.layer.Image({
+                    name: 'Clusters',
+                    visible: true,
+                    source: new ol.source.ImageStatic({
+                        url: data[0][0], // URL PNG-изображения
+                        imageSize: [5983, 4143], // Размер изображения
+                        projection: projection,
+                        imageExtent: extent,
+                    })
+                });
+                const PolygonsLayer = new ol.layer.Image({
+                    name: 'Polygons',
+                    visible: true,
+                    source: new ol.source.ImageStatic({
+                        url: data[0][1], // URL PNG-изображения
+                        imageSize: [5983, 4143], // Размер изображения
+                        projection: projection,
+                        imageExtent: extent,
+                    })
+                });
+                const PolygonsForGraphLayer = new ol.layer.Image({
+                    name: 'PolygonsForGraph',
+                    visible: true,
+                    source: new ol.source.ImageStatic({
+                        url: data[0][2], // URL PNG-изображения
+                        imageSize: [5983, 4143], // Размер изображения
+                        projection: projection,
+                        imageExtent: extent,
+                    })
+                });
+
+                // Удаляем старые слои с карты
+                const names = ["Clusters", "Polygons", "PolygonsForGraph", "Graph", "StartPoint", "EndPoint"];
+                names.forEach(name => {
+                    const layers = map.getLayers().getArray();
+                    layers.forEach(layer => {
+                        if (layer.get('name') === name) {
+                            map.removeLayer(layer);
+                        }
+                    });
+                });
+
+                map.addLayer(ClustersLayer);
+                map.addLayer(PolygonsLayer);
+                map.addLayer(PolygonsForGraphLayer);
+                document.getElementById("start_coords").value = "";
+                document.getElementById("end_coords").value = "";
+
+
+                //Легенда с данными из вычислительной части
+                let clusters_data = data[1];
+                let legend = document.getElementById('legend');
+                legend.innerHTML = '';
+                let item = document.createElement('div');
+
+                for (var key in clusters_data) {
+                    item.innerHTML += '<strong>' + key + '</strong>: ' + clusters_data[key] + '<br>';
+                }
+                legend.appendChild(item);
+
+                $("#loader").hide();
+
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                $("#loader").hide();
+                return alert("Error status: " + textStatus + "\nError thrown: " + errorThrown);
+            }
+        });
+    }
+
+</script>
+
+</html>

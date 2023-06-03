@@ -14,6 +14,7 @@ import networkx
 import mpu
 
 import concurrent.futures
+import time
 
 
 def generate_colors(num_colors):
@@ -312,10 +313,11 @@ class MapBuilder:
             self.context.stroke()
 
     def save_clustered_image(self):
-        file_name = self.file_name + '_' + str(self.save_mode)
-        with open(f'../images/clustered/clustered_{file_name}.png', 'wb') as f:
+        file_path = f'./static/images/clustered/clustered_{self.file_name}_{str(self.save_mode)}_{str(time.time_ns())}.png'
+        with open(file_path, 'wb') as f:
             self.map_image.write_to_png(f)
         f.close()
+        return file_path
 
     def create_empty_map(self):
         if self.create_new_empty_map:
@@ -385,7 +387,7 @@ class MapBuilder:
             ctx.paint()
             self.map_image = map_image_clipped
         else:
-            self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
+            self.map_image = ImageSurface.create_from_png(f'./static/images/clean/{self.file_name}.png')
 
         # рассчитываем координаты углов в веб-меркаторе
         self.left_top = tuple(mercantile.xy(self.west, self.north))
@@ -397,7 +399,7 @@ class MapBuilder:
 
         # Сохраняем результат
         if self.create_new_empty_map:
-            with open(f'../images/clean/{self.file_name}.png', 'wb') as f:
+            with open(f'./static/images/clean/{self.file_name}.png', 'wb') as f:
                 self.map_image.write_to_png(f)
                 f.close()
 
@@ -416,17 +418,19 @@ class MapBuilder:
                 context.line_to(row[0] + line_length * math.cos(angle), row[1] + line_length * math.sin(angle))
                 context.stroke()
             # Сохраняем результат
-            with open(f'../images/clean/{self.file_name}_with_points.png', 'wb') as f:
+            with open(f'./static/images/clean/{self.file_name}_with_points.png', 'wb') as f:
                 self.map_image.write_to_png(f)
 
-        self.map_image = ImageSurface.create_from_png(f'../images/clean/{self.file_name}.png')
+        self.map_image = ImageSurface.create_from_png(f'./static/images/clean/{self.file_name}.png')
         self.context = Context(self.map_image)
         self.create_new_empty_map = False
 
     def get_edge_distance(self, point_1, point_2):
-        lat1, lon1 = self.left_top[0] + point_1.x / self.kx, self.left_top[1] + point_1.y / self.ky
-        lat2, lon2 = self.left_top[0] + point_2.x / self.kx, self.left_top[1] + point_2.y / self.ky
-        distance = mpu.haversine_distance(mercantile.lnglat(lon1, lat1), mercantile.lnglat(lon2, lat2)) / 1.85
+        web_x1, web_y1 = self.left_top[0] + point_1.x / self.kx, self.left_top[1] + point_1.y / self.ky
+        web_x2, web_y2 = self.left_top[0] + point_2.x / self.kx, self.left_top[1] + point_2.y / self.ky
+        lon1, lat1 = mercantile.lnglat(web_x1, web_y1)
+        lon2, lat2 = mercantile.lnglat(web_x2, web_y2)
+        distance = mpu.haversine_distance((lat1, lon1), (lat2, lon2)) / 1.85
         return distance
 
     def get_nearest_poly_point(self, point):
@@ -448,7 +452,6 @@ class MapBuilder:
             if shapely.intersects(self.polygon_buffers[key], current_point):
                 available_directions[key] = self.average_directions[key]
 
-        # Определяем углы до точек
         angles = {point: (math.atan2(point.y - current_point.y, point.x - current_point.x)
                           + 2 * math.pi) % (math.pi * 2) for point in self.intersection_points}
 
@@ -492,16 +495,17 @@ class MapBuilder:
                         ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
                         (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
                     if rotation == 180:
-                        point, current_point = current_point, point
-
+                        edge_end, edge_start = current_point, point
+                    else:
+                        edge_start, edge_end = current_point, point
                     # Обновляем вес существующего ребра, только если он больше нового
                     data = self.graph.get_edge_data(current_point, point)
                     if data is not None:
                         if data['weight'] > weight:
-                            self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
+                            self.graph.add_edge(edge_start, edge_end, weight=weight, color=self.colors[key],
                                                 angle_deviation=angle_deviation, distance=distance, speed=speed)
                     else:
-                        self.graph.add_edge(current_point, point, weight=weight, color=self.colors[key],
+                        self.graph.add_edge(edge_start, edge_end, weight=weight, color=self.colors[key],
                                             angle_deviation=angle_deviation, distance=distance, speed=speed)
         if rotation == 180:
             return really_interesting_points
@@ -515,6 +519,7 @@ class MapBuilder:
                                 angle_deviation=data['angle_deviation'], distance=data['distance'], speed=data['speed'])
 
     def build_graph(self, start_point=None, end_point=None, create_new_graph=False):
+        result_graph = {}
         end_point_saved = None
         if len(self.graph.edges) == 0:
             create_new_graph = True
@@ -558,7 +563,8 @@ class MapBuilder:
             if create_new_graph:
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     executor.map(self.visit_point, self.intersection_points)
-            self.visit_point(current_point)
+            else:
+                self.visit_point(current_point)
         else:
             print('Конечная точка недостижима :(')
 
@@ -640,6 +646,15 @@ class MapBuilder:
 
                 angle_deviation_mean = angle_deviation_sum / (len(path) - 1)
 
+                result_graph['Протяженность маршрута'] = f'{str(round(distance, 3))} (м. мили)'
+                result_graph['Примерное время прохождения маршрута'] = f'{get_hours_minutes_str(time_sum)}'
+                result_graph['Среднее отклонение от курсов на маршруте'] = f'{str(round(angle_deviation_mean, 1))}°'
+                result_graph[
+                    'Протяженность участков'] = f'{[round(distance, 3) for distance in distance_of_section]} (м. мили)'
+                result_graph['Скорость на участках'] = f'{[round(speed, 1) for speed in speed_on_section]} (узлы)'
+                result_graph[
+                    'Отклонения от курсов на участках'] = f'{[round(angle, 1) for angle in angle_deviation_on_section]} (°)'
+
                 print()
                 print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
                 print('Протяженность маршрута:', str(round(distance, 3)), '(м. мили)')
@@ -648,7 +663,7 @@ class MapBuilder:
                 print('Отклонения от курсов на участках:',
                       [round(angle, 1) for angle in angle_deviation_on_section], '(°)')
                 print('Скорость на участках:', [round(speed, 1) for speed in speed_on_section], '(узлы)')
-                print('Протяженность участков:', [round(distance, 1) for distance in distance_of_section], '(м. мили)')
+                print('Протяженность участков:', [round(distance, 3) for distance in distance_of_section], '(м. мили)')
                 print()
 
                 self.context.set_source_rgba(color[0], color[1], color[2], color[3])
@@ -658,8 +673,10 @@ class MapBuilder:
                 print('Маршрут успешно построен :)')
         except networkx.exception.NetworkXNoPath:
             print('Маршрут найти не удалось :(')
+            result_graph['error'] = 'Маршрут найти не удалось!'
         except networkx.exception.NodeNotFound:
             print('Для начальной точки нет доступных узлов :(')
+            result_graph['error'] = 'Для начальной точки нет доступных узлов!'
 
         # Выделение точек начала и конца
         self.context.set_line_width(0)
@@ -683,6 +700,8 @@ class MapBuilder:
         if really_interesting_points == 0 and create_new_graph:
             self.graph_params = {}
             self.graph = networkx.DiGraph()
+
+        return result_graph
         # # Отображение букв для начальной и конечной точек
         # # TODO: убрать этот кусок в релизе
         # self.context.set_source_rgba(0, 0, 0, 1)
@@ -692,26 +711,46 @@ class MapBuilder:
         # self.context.move_to(end_point.x - 15, end_point.y - 15)
         # self.context.show_text('B')
 
+    def get_img_coords_from_lon_lat(self, x_point, y_point):
+        # gps в меркатор
+        xy = mercantile.xy(x_point, y_point)
+        # переводим xy в координаты изображения
+        x_point = (xy[0] - self.left_top[0]) * self.kx
+        y_point = (xy[1] - self.left_top[1]) * self.ky
+        return x_point, y_point
+
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):
+        result_clustering = {}
         # Удаляю шум, не уверен, стоит ли
         # self.delete_noise()
-        for save_mode in 'clusters', 'polygons':
+        clusters_img = []
+        for save_mode in 'clusters', 'polygons', 'polygons4graph':
             self.create_empty_map()
             self.calculate_points_on_image()
-            self.show_polygons()
-            self.show_intersections()
             # frac - можно выбрать, какую долю объектов нанести на карту
             if save_mode == 'clusters':
                 self.show_points(frac=1)
-            if save_mode == 'polygons':
+            elif save_mode == 'polygons':
+                self.show_points(frac=1)
+                self.show_polygons()
+                self.show_intersections()
+            elif save_mode == 'polygons4graph':
+                self.show_polygons()
+                self.show_intersections()
                 self.show_average_directions()
+                self.show_intersection_points()
             self.save_mode = save_mode
-            self.save_clustered_image()
+            clusters_img.append(self.save_clustered_image())
 
         log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
         log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        result_clustering['Всего кластеров'] = f'{str(self.cluster_count)}'
+        result_clustering['Доля шума'] = f'{str(self.noise_count)} / {str(self.total_count)}'
+        print(clusters_img)
         print(log)
+
+        return clusters_img, result_clustering
 
         # Перевод координат изображения в координаты веб-меркатора
         # lat = self.left_top[0] + 3500 / self.kx
@@ -728,7 +767,13 @@ class MapBuilder:
         if create_new_graph:
             self.intersection_points = []
         self.show_intersection_points()
-        self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
-                         create_new_graph=create_new_graph)
+
+        x_start, y_start = self.get_img_coords_from_lon_lat(x_start, y_start)
+        x_end, y_end = self.get_img_coords_from_lon_lat(x_end, y_end)
+
+        result_graph = self.build_graph(shapely.Point(x_start, y_start), shapely.Point(x_end, y_end),
+                                        create_new_graph=create_new_graph)
         self.save_mode = 'path'
-        self.save_clustered_image()
+        graph_img = self.save_clustered_image()
+
+        return graph_img, result_graph

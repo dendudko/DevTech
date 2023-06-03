@@ -1,0 +1,172 @@
+.container {
+    display: flex;
+    flex-direction: row;
+    background-color: #f5f5f5;
+    box-sizing: border-box; /* или content-box */
+}
+
+.input_block {
+    display: flex;
+    flex-flow: column wrap;
+    height: 100%;
+    align-items: center;
+    width: 20%;
+    margin-bottom: 40px;
+    margin-right: 5px;
+    margin-left: 15px;
+}
+
+.clusterization-title, .route-title {
+    color: #555;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    margin-top: 30px;
+    margin-left: -35px;
+
+}
+
+.clusterization-label, .route-label {
+    display: inline-block;
+    width: 120px;
+    margin-bottom: 5px;
+    color: #999;
+}
+
+.clusterization-input, .route-input {
+    width: 40%;
+    height: 40%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+button[type=submit] {
+    background-color: #ccc;
+    color: #333;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 220px;
+    height: 50px;
+    margin-left: -30px;
+
+}
+
+button:hover {
+    background-color: #555;
+    color: #fff;
+}
+
+button:active {
+    box-shadow: 0px 0px 5px 5px #c0a3f3;
+}
+
+.map {
+    width: 960px;
+    height: 500px;
+    margin-top: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+
+
+#legend {
+    position: absolute;
+    margin-bottom: 8px;
+    padding: 5px;
+    left: 50px;
+    width: fit-content;
+    height: fit-content;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.4s ease-in-out;
+    z-index: 10;
+}
+
+#legend.hide {
+    bottom: -270px;
+}
+
+#legend.show {
+    bottom: 0;
+}
+
+.legend-content {
+    padding: 10px;
+    font-size: 14px;
+}
+
+.ol-touch .ol-control button, .ol-control.ol-layerswitcher {
+    font-size: 1em;
+}
+
+.ol-overlaycontainer-stopevent *{
+    cursor: pointer;
+}
+
+#loader {
+    display: none;
+    position: fixed;
+    z-index: 999;
+    height: 2em;
+    width: 2em;
+    overflow: show;
+    margin: auto;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+}
+
+/* Transparent Overlay */
+#loader:before {
+    content: '';
+    display: block;
+    position: fixed;
+    z-index: 998;
+    background-color: rgba(0, 0, 0, 0.3);
+    height: 100%;
+    width: 100%;
+    top: 0;
+    left: 0;
+}
+
+/* Blue Circle */
+#loader:after {
+    content: '';
+    display: block;
+    position: absolute;
+    z-index: 999;
+    border-radius: 50%;
+    border: 0.3em solid #007bff;
+    border-top: 0.3em solid #fff;
+    width: 2em;
+    height: 2em;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    margin: auto;
+    animation: spin 2s linear infinite;
+}
+
+/* Animation */
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
