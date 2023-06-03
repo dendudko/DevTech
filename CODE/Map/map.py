@@ -192,7 +192,6 @@ class MapBuilder:
                 polygon_geom = shapely.Polygon(
                     zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
                 # polygon_geom2 = shapely.convex_hull(polygon_geom)
-                # TODO: Минимальная вогнутая оболочка - выглядит правдоподобнее
                 polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
                 # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                 if isinstance(polygon_geom2, shapely.Polygon):
@@ -723,7 +722,7 @@ class MapBuilder:
         web_x = x / self.kx + self.left_top[0]
         web_y = y / self.ky + self.left_top[1]
         lon, lat = mercantile.lnglat(web_x, web_y)
-        return lat, lon
+        return round(lat,6), round(lon,6)
 
     # Возможно стоит убрать мелкие кластеры...
     def create_clustered_map(self):

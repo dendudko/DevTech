@@ -3,16 +3,6 @@ from Main.main import *
 from PIL import Image
 import os
 
-
-def compress_image(image_path, output_folder, quality):
-    # Открываем изображение для сжатия
-    with Image.open(image_path) as img:
-        # Сжимаем изображение с помощью Pillow
-        img.save(os.path.join(output_folder, os.path.basename(image_path)),
-                 optimize=True,
-                 quality=quality)
-
-
 app = Flask(__name__)
 
 
@@ -30,9 +20,8 @@ def get_graphs_parameters():
         parameters_for_graph[key] = float(parameters_for_graph[key])
     for key in coords:
         coords[key] = float(coords[key])
-
     graph_data = call_find_path(parameters_for_graph, coords)
-    # compress_image(graph_data[0], 'static\\logs', 0)
+
     return jsonify(graph_data)
 
 
@@ -47,9 +36,8 @@ def get_DBSCAN_parameters():
     # вызвать функцию кластеризации
     for key in parameters_for_DBSCAN:
         parameters_for_DBSCAN[key] = float(parameters_for_DBSCAN[key])
-
     clusters_data = call_clustering(parameters_for_DBSCAN)
-    # print('ответ сервера', clusters_data)
+
     return jsonify(clusters_data)
 
 
