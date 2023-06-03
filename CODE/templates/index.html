@@ -143,31 +143,6 @@
         ])
     });
 
-    //Функция границ карты (проблемы при наложении других изобраажений - возомжно, надо отформатировать)
-    {#var extent = map.getView().calculateExtent();#}
-    {#var resolution = 0;#}
-    {#function resChange() {#}
-    {#    var newResolution = map.getView().getResolution();#}
-    {#    console.log(newResolution)#}
-    {#    if (resolution == 0 || Math.abs((newResolution - resolution) / resolution) > 0.001) {#}
-    {#        resolution = newResolution;#}
-    {#        var width = map.getSize()[0] * resolution;#}
-    {#        var height = map.getSize()[1] * resolution;#}
-    {#        var view = new ol.View({#}
-    {#            projection: map.getView().getProjection(),#}
-    {#            extent: [extent[0] + (width / 2), extent[1] + (height / 2), extent[2] - (width / 2), extent[3] - (height / 2)],#}
-    {#            center: map.getView().getCenter(),#}
-    {#            resolution: resolution,#}
-    {#            maxZoom: map.getView().getMaxZoom(),#}
-    {#            minZoom: map.getView().getMinZoom()#}
-    {#        });#}
-    {#        view.on('change:resolution', resChange);#}
-    {#        map.setView(view);#}
-    {#    }#}
-    //}
-    {#resChange();#}
-
-
     map.addControl(new ol.control.LayerSwitcher({
         reverse: false
     }));
@@ -188,7 +163,7 @@
     var button = new ol.control.Button({
         className: 'ol-legend ol-unselectable ol-control ol-collapsed', // класс для стилизации кнопки
         title: 'Данные работы алгоритма', // всплывающая подсказка для кнопки
-        handleClick: function () { // ваша функция для обработки клика на кнопке
+        handleClick: function () { //
             if (legendShown) {
                 document.getElementById('legend').className = 'hide';
                 legendShown = false;
@@ -205,7 +180,7 @@
     //Забавы с курсором
     map.getViewport().style.cursor = "auto";
     //Ладошка
-    {#map.getViewport().style.cursor = "-webkit-grab";#}
+    // map.getViewport().style.cursor = "-webkit-grab";
     map.on('pointerdrag', function (evt) {
         map.getViewport().style.cursor = "-webkit-grabbing";
     });
@@ -339,7 +314,7 @@
         let polyLayerExists = false;
         let allLayers = map.getLayers().getArray();
 
-        {#Проверка на начальную кластеризацию данных#}
+        // Проверка на начальную кластеризацию данных
         for (let i = 0; i < allLayers.length; i++) {
             if (allLayers[i].get('name') === 'Polygons') {
                 polyLayerExists = true;
@@ -563,6 +538,7 @@
             }
         });
     }
+
     document.getElementsByClassName('ol-attribution ol-unselectable ol-control ol-collapsed')[0].remove()
 </script>
 
