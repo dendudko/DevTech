@@ -25,40 +25,48 @@
         <div class="clusterization-title">Кластеризация</div>
         <div class="clusterization-inputs">
 
-            <label title="вес расстояния для метрики DBSCAN" class="clusterization-label">weight_distance</label>
+            <label for="weight_distance" title="вес расстояния для метрики DBSCAN" class="clusterization-label">weight_distance</label>
             <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_distance'] }}"
                    id="weight_distance" class="clusterization-input"/>
 
-            <label title="вес скорости для метрики DBSCAN" class="clusterization-label">weight_speed</label>
+            <label for="weight_speed" title="вес скорости для метрики DBSCAN"
+                   class="clusterization-label">weight_speed</label>
             <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_speed'] }}"
                    id="weight_speed"
                    class="clusterization-input"/>
 
-            <label title="вес курса для метрики DBSCAN" class="clusterization-label">weight_course</label>
+            <label for="weight_course" title="вес курса для метрики DBSCAN"
+                   class="clusterization-label">weight_course</label>
             <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_course'] }}"
                    id="weight_course"
                    class="clusterization-input"/>
 
-            <label title="максимальное расстояние (по метрике) между объектами для признания их соседними в алгоритме DBSCAN"
+            <label for="eps"
+                   title="максимальное расстояние (по метрике) между объектами для признания их соседними в алгоритме DBSCAN"
                    class="clusterization-label">eps</label>
             <input type="number" min="0" step="0.001" required value="{{ clustering_params['eps'] }}" id="eps"
                    class="clusterization-input"/>
 
-            <label title="минимальное число соседей, необходимое для признания объекта ядровым в алгоритме DBSCAN"
+            <label for="min_samples"
+                   title="минимальное число соседей, необходимое для признания объекта ядровым в алгоритме DBSCAN"
                    class="clusterization-label">min_samples</label>
             <input type="number" min="0" required value="{{ clustering_params['min_samples'] }}" id="min_samples"
                    class="clusterization-input"/>
 
-            <label title="степень метрики" class="clusterization-label">metric_degree</label>
-            <input type="number" step="1" required value="1" id="metric_degree" min="1"
-                   class="clusterization-input"/>
+            <label for="metric_degree" title="степень метрики для алгоритма DBSCAN" class="clusterization-label">metric_degree</label>
+            <input type="number" step="0.1" required value="{{ clustering_params['metric_degree'] }}" id="metric_degree"
+                   min="1" class="clusterization-input"/>
 
-            <label title="форма оболочки" for="hull_type" class="clusterization-label">hull_type:</label>
+            <label for="hull_type" title="форма оболочки для полигонов (convex - выпуклая, concave - вогнутая)"
+                   class="clusterization-label">hull_type</label>
             <select id="hull_type" name="hull_type" class="clusterization-input">
-                <option value="convex_hull">convex</option>
-                <option value="concave_hull">concave</option>
+                <option value="convex_hull" {% if clustering_params['hull_type']=='convex_hull' %}
+                        selected {% endif %}>convex
+                </option>
+                <option value="concave_hull" {% if clustering_params['hull_type']=='concave_hull' %}
+                        selected {% endif %}>concave
+                </option>
             </select>
-
 
         </div>
         <div class="buttons">
@@ -71,48 +79,55 @@
 
         <div class="route-inputs">
 
-            <label title="добавление точек внутрь пересечений полигонов" for="points_inside_intersections"
-                   class="route-label">points_inside_intersections</label>
-            <input type="checkbox" style="height: 15px;" class="route-input" id="points_inside_intersections"
-                   name="points_type" value="inside_polygon" checked>
+            <label for="points_inside" title="добавление точек внутрь пересечений полигонов"
+                   class="route-label">points_inside</label>
+            <input type="checkbox" style="height: 15px;" class="route-input" id="points_inside"
+                   name="points_inside" {% if graph_params['points_inside']==True %} checked {% endif %}/>
 
-            <label title="расстояние между генерируемыми точками в пересечениях полигонов" class="route-label">distance_delta</label>
+            <label for="distance_delta" title="расстояние между генерируемыми точками в пересечениях полигонов"
+                   class="route-label">distance_delta</label>
             <input type="number" min="0" step="0.1" required value="{{ graph_params['distance_delta'] }}"
                    id="distance_delta"
                    class="route-input"/>
 
-            <label title="степень весовой функции ребра" class="clusterization-label">weight_func_degree</label>
-            <input type="number" step="1" required value="1" id="weight_func_degree" min="1"
-                   class="clusterization-input"/>
+            <label for="weight_func_degree" title="степень весовой функции ребра графа" class="clusterization-label">weight_func_degree</label>
+            <input type="number" step="1" required value="{{ graph_params['weight_func_degree'] }}"
+                   id="weight_func_degree" min="1" class="clusterization-input"/>
 
-            <label title="угол обзора для узла, в пределах которого возможно добавить ребра в граф" class="route-label">angle_of_vision</label>
+            <label for="angle_of_vision"
+                   title="угол обзора для узла, в пределах которого возможно добавить ребра в граф" class="route-label">angle_of_vision</label>
             <input type="number" min="0" step="0.1" required value="{{ graph_params['angle_of_vision'] }}"
                    id="angle_of_vision"
                    class="route-input"/>
 
-            <label title="вес времени прохождения для ребер графа" class="route-label">weight_time</label>
+            <label for="weight_time_graph" title="вес времени прохождения для ребер графа" class="route-label">weight_time_graph</label>
             <input type="number" min="0" step="0.1" required value="{{ graph_params['weight_time_graph'] }}"
                    id="weight_time_graph" class="route-input"/>
 
-            <label title="вес соответствия направления среднекластерному для ребер графа " class="route-label">weight_course</label>
+            <label for="weight_course_graph" title="вес соответствия направления среднекластерному для ребер графа "
+                   class="route-label">weight_course_graph</label>
             <input type="number" min="0" step="0.01" required value="{{ graph_params['weight_course_graph'] }}"
                    id="weight_course_graph" class="route-input"/>
 
-            <label title="алгоритм поиска по графу" for="algorithm" class="route-label">
-                search_algorithm:</label>
+            <label for="search_algorithm" title="алгоритм поиска по графу" class="route-label">
+                search_algorithm</label>
             <select id="search_algorithm" name="search_algorithm" class="route-input">
-                <option value="Dijkstra">Dijkstra</option>
-                <option value="A*">A*</option>
+                <option value="Dijkstra" {% if graph_params['search_algorithm']=='Dijkstra' %}
+                        selected {% endif %}>Dijkstra
+                </option>
+                <option value="A*" {% if graph_params['search_algorithm']=='A*' %}
+                        selected {% endif %}>A*
+                </option>
             </select>
 
-            <label title="начальная точка маршрута" class="route-label">start_coords</label>
-            <input style="cursor: pointer;" type="text" id="start_coords" readonly required placeholder="Клик на карте"
+            <label for="start_coords" title="начальная точка маршрута" class="route-label">start_coords</label>
+            <input style="cursor: pointer;" type="text" id="start_coords" readonly required
+                   placeholder="Выбрать на карте"
                    class="route-input"/>
 
-            <label title="конечная точка маршрута" class="route-label">end_coords</label>
-            <input style="cursor: pointer;" type="text" id="end_coords" readonly required placeholder="Клик на карте"
+            <label for="end_coords" title="конечная точка маршрута" class="route-label">end_coords</label>
+            <input style="cursor: pointer;" type="text" id="end_coords" readonly required placeholder="Выбрать на карте"
                    class="route-input"/>
-
 
         </div>
 
@@ -361,10 +376,11 @@
             alert("Сначала необходимо кластеризовать данные");
         } else {
             // Получаем значения полей ввода
-            const fields = ['weight_func_degree', 'distance_delta', 'angle_of_vision', 'weight_time_graph', 'weight_course_graph', 'search_algorithm', 'start_coords', 'end_coords'];
+            const fields = ['distance_delta', 'weight_func_degree', 'angle_of_vision', 'weight_time_graph', 'weight_course_graph', 'search_algorithm', 'start_coords', 'end_coords'];
             const parameters_for_graph = {};
             let allFieldsFilled = true;
             var alert_list = []
+            parameters_for_graph['points_inside'] = $('#points_inside').is(':checked');
             fields.forEach(field => {
                 const value = document.getElementById(field).value;
                 if (!value) {
@@ -373,7 +389,6 @@
                 }
                 parameters_for_graph[field] = value;
             });
-            parameters_for_graph['points_inside_polygons'] = $('#points_inside_polygon').is(':checked');
 
             // Если не все поля заполнены, выходим из функции
             if (!allFieldsFilled) return alert("Остались незаполненные поля: " + alert_list);
@@ -465,7 +480,9 @@
                             '<br>' + '<strong>Скорость на участках</strong>: ' + graph_data['Скорость на участках'] +
                             '<br>' + '<strong>Протяженность участков</strong>: ' + graph_data['Протяженность участков'] +
                             '<br><br>' + '<strong>Характеристики графа</strong>: ' + graph_data['Характеристики графа'] +
-                            '<br>' + '<strong>Точки маршрута</strong>: ' + graph_data['Точки маршрута'] + '<br>';
+                            '<br>' + '<strong>Точки маршрута</strong>: ' + graph_data['Точки маршрута'] +
+                            '<br><br>' + '<strong>Время построения графа</strong>: ' + graph_data['Время построения графа'] +
+                            '<br>' + '<strong>Время планирования маршрута</strong>: ' + graph_data['Время планирования маршрута'] + '<br>';
                     }
 
                     legend.appendChild(item);
@@ -559,9 +576,10 @@
                 legend.innerHTML = '';
                 let item = document.createElement('div');
 
-                for (var key in clusters_data) {
-                    item.innerHTML += '<strong>' + key + '</strong>: ' + clusters_data[key] + '<br>';
-                }
+                item.innerHTML =
+                    '<strong>Всего кластеров</strong>: ' + clusters_data['Всего кластеров'] +
+                    '<br>' + '<strong>Доля шума</strong>: ' + clusters_data['Доля шума'] +
+                    '<br><br>' + '<strong>Время выполнения DBSCAN</strong>: ' + clusters_data['Время выполнения DBSCAN'] + '<br>';
                 legend.appendChild(item);
 
                 $("#loader").hide();

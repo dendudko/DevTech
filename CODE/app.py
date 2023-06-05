@@ -3,6 +3,7 @@ from Main.main import *
 
 app = Flask(__name__)
 
+
 @app.route('/get_graphs_parameters', methods=['POST'])
 def get_graphs_parameters():
     parameters_for_graph = request.get_json()
@@ -14,32 +15,32 @@ def get_graphs_parameters():
     del parameters_for_graph['start_coords']
     del parameters_for_graph['end_coords']
 
-    for i, key in enumerate(parameters_for_graph):
-        parameters_for_graph[key] = float(parameters_for_graph[key])
-        if i == len(parameters_for_graph) - 3:
-            break
+    for key in parameters_for_graph:
+        if key != 'search_algorithm' and key != 'points_inside':
+            parameters_for_graph[key] = float(parameters_for_graph[key])
 
     for key in coords:
         coords[key] = float(coords[key])
 
-    print(parameters_for_graph,coords)
+    # print(parameters_for_graph, coords)
     graph_data = call_find_path(parameters_for_graph, coords)
     return jsonify(graph_data)
+
 
 def get_coordinates(coords):
     lat, long = coords.split(',')
     return lat, long
 
+
 @app.route('/get_DBSCAN_parameters', methods=['POST'])
 def get_DBSCAN_parameters():
     parameters_for_DBSCAN = request.get_json()
-    print(parameters_for_DBSCAN)
+    # print(parameters_for_DBSCAN)
     # вызвать функцию кластеризации
 
-    for i, key in enumerate(parameters_for_DBSCAN):
-        parameters_for_DBSCAN[key] = float(parameters_for_DBSCAN[key])
-        if i == len(parameters_for_DBSCAN) - 2:
-            break
+    for key in parameters_for_DBSCAN:
+        if key != 'hull_type':
+            parameters_for_DBSCAN[key] = float(parameters_for_DBSCAN[key])
 
     clusters_data = call_clustering(parameters_for_DBSCAN)
     return jsonify(clusters_data)

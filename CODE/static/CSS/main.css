@@ -10,7 +10,7 @@
     flex-flow: column wrap;
     height: 100%;
     align-items: center;
-    width: 20%;
+    width: auto;
     margin-bottom: 0;
     margin-right: 5px;
     margin-left: 15px;
@@ -23,7 +23,6 @@
     margin-bottom: 10px;
     margin-top: 10px;
     margin-left: -35px;
-
 }
 
 .clusterization-label, .route-label {
@@ -34,7 +33,7 @@
 }
 
 .clusterization-input, .route-input {
-    width: 40%;
+    width: 41%;
     height: 40%;
     border: 1px solid #ddd;
     border-radius: 4px;
@@ -70,7 +69,7 @@ button:active {
 }
 
 .map {
-    width: 1000px;
+    width: 960px;
     height: 588px;
     border: 1px solid #ddd;
     border-radius: 4px;

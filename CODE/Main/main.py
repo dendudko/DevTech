@@ -4,6 +4,7 @@ from sklearn.utils import parallel_backend
 from LoadData.load_data import load_data
 from Map.map import MapBuilder
 import pickle
+import time
 
 
 def clustering(clustering_params, file_name='all_merged', create_new_empty_map=False):
@@ -12,6 +13,7 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
     weight_course = clustering_params['weight_course']
     eps = clustering_params['eps']
     min_samples = int(clustering_params['min_samples'])
+    metric_degree = clustering_params['metric_degree']
 
     df = load_data(f'{file_name}.xlsx', 'marine.xlsx', create_new_clean_xlsx=False)
     min_lat = df['lat'].min()
@@ -19,21 +21,24 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
     max_lat = df['lat'].max()
     max_lon = df['lon'].max()
 
+    dbscan_start_time = time.time()
     # Нормализуем данные, значительно увеличивает вычислительную эффективность
     scaler = StandardScaler()
     X = scaler.fit_transform(df)
     # Распараллеливаем вычисления
     with parallel_backend('loky', n_jobs=-1):
         # Нашел более правильную реализацию метрики, вроде работает получше и побыстрее
-        clusters = DBSCAN(eps=eps, min_samples=min_samples, metric='minkowski', p=2,
+        clusters = DBSCAN(eps=eps, min_samples=min_samples, metric='minkowski', p=metric_degree,
                           metric_params={'w': [weight_distance, weight_distance,
                                                weight_speed, weight_course]}).fit_predict(X)
 
     df['cluster'] = clusters
+    dbscan_time = round(time.time() - dbscan_start_time, 3)
 
     map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
                              file_name=f'{file_name}', create_new_empty_map=create_new_empty_map)
     map_builder.clustering_params = clustering_params
+    map_builder.dbscan_time = dbscan_time
     clustered_images = map_builder.create_clustered_map()
 
     # Обнуляем несериализуемые pickle поля
@@ -47,61 +52,63 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
 
 
 def call_clustering(clustering_params):
-    # clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29, 'min_samples': 50}
-    # pickle отлично решает задачу сериализации объекта MapBuilder
     clustering_params['min_samples'] = int(clustering_params['min_samples'])
     try:
         with open('./Main/map_builder_dump.pickle', 'rb') as load_file:
             map_builder_loaded = pickle.load(load_file)
 
         if map_builder_loaded.clustering_params == clustering_params:
-            images = map_builder_loaded.create_clustered_map()
+            result = map_builder_loaded.create_clustered_map()
         else:
-            images = clustering(clustering_params)
+            result = clustering(clustering_params)
 
     except FileNotFoundError or EOFError:
-        images = clustering(clustering_params)
+        result = clustering(clustering_params)
 
-    return images
+    return result
 
 
 def call_find_path(graph_params, coords):
-    # graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1, 'weight_course_graph': 0.01
     try:
         with open('./Main/map_builder_dump.pickle', 'rb') as load_file:
             map_builder_loaded = pickle.load(load_file)
 
         if len(map_builder_loaded.graph_params.keys()) == 0:
             map_builder_loaded.graph_params = graph_params
-            graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
-                                                     coords['end_lat'], create_new_graph=True)
+            result = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
+                                                  coords['end_lat'], create_new_graph=True)
         elif map_builder_loaded.graph_params == graph_params:
-            graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
-                                                     coords['end_lat'], create_new_graph=False)
+            result = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
+                                                  coords['end_lat'], create_new_graph=False)
         elif map_builder_loaded.graph_params['distance_delta'] == graph_params['distance_delta'] and \
                 map_builder_loaded.graph_params['angle_of_vision'] == graph_params['angle_of_vision'] and \
+                map_builder_loaded.graph_params['points_inside'] == graph_params['points_inside'] and \
                 (map_builder_loaded.graph_params['weight_time_graph'] != graph_params['weight_time_graph'] or
-                 map_builder_loaded.graph_params['weight_course_graph'] != graph_params['weight_course_graph']):
+                 map_builder_loaded.graph_params['weight_course_graph'] != graph_params['weight_course_graph'] or
+                 map_builder_loaded.graph_params['weight_func_degree'] != graph_params['weight_func_degree'] or
+                 map_builder_loaded.graph_params['search_algorithm'] != graph_params['search_algorithm']):
+            # Пересчет ребер происходит очень быстро,
+            # нет смысла отдельно обрабатывать случай, когда изменился только алгоритм поиска
             map_builder_loaded.graph_params = graph_params
             map_builder_loaded.recalculate_edges()
-            graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
-                                                     coords['end_lat'], create_new_graph=False)
+            result = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
+                                                  coords['end_lat'], create_new_graph=False)
         else:
             map_builder_loaded.graph_params = graph_params
-            graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
-                                                     coords['end_lat'], create_new_graph=True)
+            result = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
+                                                  coords['end_lat'], create_new_graph=True)
         # print(map_builder_loaded.graph)
 
     except FileNotFoundError or EOFError:
-        clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29,
-                             'min_samples': 50}
+        clustering_params = {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309,
+                             'min_samples': 50, 'metric_degree': 2.0, 'hull_type': 'convex_hull'}
         clustering(clustering_params)
         with open('./Main/map_builder_dump.pickle', 'rb') as load_file:
             map_builder_loaded = pickle.load(load_file)
 
         map_builder_loaded.graph_params = graph_params
-        graph_img = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
-                                                 coords['end_lat'], create_new_graph=True)
+        result = map_builder_loaded.find_path(coords['start_long'], coords['start_lat'], coords['end_long'],
+                                              coords['end_lat'], create_new_graph=True)
         # print(map_builder_loaded.graph)
 
     # Обнуляем несериализуемые pickle поля
@@ -110,21 +117,7 @@ def call_find_path(graph_params, coords):
     # Сохраняем дамп объекта map_builder
     with open('./Main/map_builder_dump.pickle', 'wb') as dump_file:
         pickle.dump(map_builder_loaded, dump_file, protocol=pickle.HIGHEST_PROTOCOL)
-    return graph_img
-
-
-def load_graph_params():
-    try:
-        with open('./Main/map_builder_dump.pickle', 'rb') as load_file:
-            map_builder_loaded = pickle.load(load_file)
-            graph_params = map_builder_loaded.graph_params
-            if len(graph_params) == 0:
-                graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1,
-                                'weight_course_graph': 0.1}
-    except FileNotFoundError or EOFError:
-        graph_params = {'distance_delta': 120, 'angle_of_vision': 30, 'weight_time_graph': 1,
-                        'weight_course_graph': 0.1}
-    return graph_params
+    return result
 
 
 def load_clustering_params():
@@ -133,9 +126,25 @@ def load_clustering_params():
             map_builder_loaded = pickle.load(load_file)
             clustering_params = map_builder_loaded.clustering_params
             if len(clustering_params) == 0:
-                clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29,
-                                     'min_samples': 50}
+                clustering_params = {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309,
+                                     'min_samples': 50, 'metric_degree': 2.0, 'hull_type': 'convex_hull'}
     except FileNotFoundError or EOFError:
-        clustering_params = {'weight_distance': 2, 'weight_speed': 1, 'weight_course': 20, 'eps': 0.29,
-                             'min_samples': 50}
+        clustering_params = {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309,
+                             'min_samples': 50, 'metric_degree': 2.0, 'hull_type': 'convex_hull'}
     return clustering_params
+
+
+def load_graph_params():
+    try:
+        with open('./Main/map_builder_dump.pickle', 'rb') as load_file:
+            map_builder_loaded = pickle.load(load_file)
+            graph_params = map_builder_loaded.graph_params
+            if len(graph_params) == 0:
+                graph_params = {'points_inside': False, 'distance_delta': 150.0, 'weight_func_degree': 2.0,
+                                'angle_of_vision': 30.0, 'weight_time_graph': 1.0, 'weight_course_graph': 0.1,
+                                'search_algorithm': 'Dijkstra'}
+    except FileNotFoundError or EOFError:
+        graph_params = {'points_inside': False, 'distance_delta': 150.0, 'weight_func_degree': 2.0,
+                        'angle_of_vision': 30.0, 'weight_time_graph': 1.0, 'weight_course_graph': 0.1,
+                        'search_algorithm': 'Dijkstra'}
+    return graph_params

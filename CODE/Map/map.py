@@ -139,6 +139,8 @@ class MapBuilder:
 
         self.graph = networkx.DiGraph()
 
+        self.dbscan_time = None
+
     def delete_noise(self):
         # Удаление шума, спорное решение
         self.df = self.df.loc[(self.df['cluster'] != -1)].dropna(axis=0).reset_index(drop=True)
@@ -191,8 +193,13 @@ class MapBuilder:
                     how='any')
                 polygon_geom = shapely.Polygon(
                     zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                polygon_geom2 = shapely.convex_hull(polygon_geom)
-                # polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
+
+                polygon_geom2 = None
+                if self.clustering_params['hull_type'] == 'convex_hull':
+                    polygon_geom2 = shapely.convex_hull(polygon_geom)
+                elif self.clustering_params['hull_type'] == 'concave_hull':
+                    polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
+
                 # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
@@ -254,22 +261,23 @@ class MapBuilder:
                     [shapely.LineString(intersection_bound).interpolate(distance) for distance in
                      distances])
 
-            # # Добавляем точки внутрь полигонов
-            # for key in self.intersection_bounds.keys():
-            #     x_min, y_min, x_max, y_max = self.intersections[key].bounds
-            #     current_y = y_min - distance_delta
-            #     calculated_points = []
-            #     while current_y <= y_max:
-            #         current_y += distance_delta
-            #         current_x = x_min - distance_delta
-            #         while current_x <= x_max:
-            #             current_x += distance_delta
-            #             calculated_points.append(shapely.Point(current_x, current_y))
-            #     calculated_multi_point = shapely.MultiPoint(calculated_points)
-            #     actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
-            #     if isinstance(actual_multi_point, shapely.MultiPoint):
-            #         actual_multi_point = actual_multi_point.geoms
-            #         self.intersection_points.extend(actual_multi_point)
+            if self.graph_params['points_inside']:
+                # Добавляем точки внутрь пересечений полигонов
+                for key in self.intersection_bounds.keys():
+                    x_min, y_min, x_max, y_max = self.intersections[key].bounds
+                    current_y = y_min - distance_delta
+                    calculated_points = []
+                    while current_y <= y_max:
+                        current_y += distance_delta
+                        current_x = x_min - distance_delta
+                        while current_x <= x_max:
+                            current_x += distance_delta
+                            calculated_points.append(shapely.Point(current_x, current_y))
+                    calculated_multi_point = shapely.MultiPoint(calculated_points)
+                    actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
+                    if isinstance(actual_multi_point, shapely.MultiPoint):
+                        actual_multi_point = actual_multi_point.geoms
+                        self.intersection_points.extend(actual_multi_point)
 
         for point in self.intersection_points:
             self.context.set_line_width(1.5)
@@ -474,16 +482,18 @@ class MapBuilder:
             #                      current_point.y + math.sin(angle_right_rad) * 1000)
             # self.context.stroke()
             try:
-                # Для варианта с convex_hull
-                current_angles_keys = shapely.intersection(
-                    self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
-
-                # # Для варианта с concave_hull
-                # current_angles_keys_multipoint = shapely.intersection(
-                #     self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
-                # current_angles_keys = [
-                #     point for point in current_angles_keys_multipoint
-                #     if shapely.contains(self.polygon_buffers[key], shapely.LineString([point, current_point]))]
+                current_angles_keys = []
+                if self.clustering_params['hull_type'] == 'convex_hull':
+                    # Для варианта с convex_hull
+                    current_angles_keys = shapely.intersection(
+                        self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
+                elif self.clustering_params['hull_type'] == 'concave_hull':
+                    # Для варианта с concave_hull
+                    current_angles_keys_multipoint = shapely.intersection(
+                        self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
+                    current_angles_keys = [
+                        point for point in current_angles_keys_multipoint
+                        if shapely.contains(self.polygon_buffers[key], shapely.LineString([point, current_point]))]
             except AttributeError:
                 continue
 
@@ -491,14 +501,14 @@ class MapBuilder:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     if rotation == 180:
                         really_interesting_points += 1
-                    # Вес = sqrt((расстояние в милях / скорость в узлах * вес времени) ** 2 +
-                    # + (разница направлений * вес направления) ** 2)
+                    # Вес = (abs(расстояние в милях / скорость в узлах * вес времени) ** p +
+                    # + abs(разница направлений * вес направления) ** p) ^ 1/p
                     angle_deviation = math.degrees(abs(angles[point] - angle_center_rad))
                     distance = self.get_edge_distance(point, current_point)
                     speed = self.average_speeds[key] / 10
-                    weight = math.sqrt(
-                        ((distance / speed) * self.graph_params['weight_time_graph']) ** 2 +
-                        (angle_deviation * self.graph_params['weight_course_graph']) ** 2)
+                    p = self.graph_params['weight_func_degree']
+                    weight = pow(pow(abs((distance / speed) * self.graph_params['weight_time_graph']), p) +
+                                 pow(abs(angle_deviation * self.graph_params['weight_course_graph']), p), 1 / p)
                     if rotation == 180:
                         edge_end, edge_start = current_point, point
                     else:
@@ -516,14 +526,16 @@ class MapBuilder:
             return really_interesting_points
 
     def recalculate_edges(self):
+        p = self.graph_params['weight_func_degree']
         for edge in self.graph.edges:
             data = self.graph.get_edge_data(edge[0], edge[1])
-            weight = math.sqrt(((data['distance'] / data['speed']) * self.graph_params[
-                'weight_time_graph']) ** 2 + (data['angle_deviation'] * self.graph_params['weight_course_graph']) ** 2)
+            weight = pow(pow(abs((data['distance'] / data['speed']) * self.graph_params['weight_time_graph']), p)
+                         + pow(abs(data['angle_deviation'] * self.graph_params['weight_course_graph']), p), 1 / p)
             self.graph.add_edge(edge[0], edge[1], weight=weight, color=data['color'],
                                 angle_deviation=data['angle_deviation'], distance=data['distance'], speed=data['speed'])
 
     def build_graph(self, start_point=None, end_point=None, create_new_graph=False):
+        build_graph_start_time = time.time()
         result_graph = {}
         end_point_saved = None
         if len(self.graph.edges) == 0:
@@ -571,10 +583,13 @@ class MapBuilder:
             else:
                 self.visit_point(current_point)
         # else:
-            # print('Конечная точка недостижима :(')
+        # print('Конечная точка недостижима :(')
 
         if end_point_saved:
             end_point = end_point_saved
+
+        build_graph_time = round(time.time() - build_graph_start_time, 3)
+
         # Отрисовка графа
         # self.context.set_line_width(0.5)
         # self.context.set_source_rgba(255, 255, 255, 1)
@@ -585,13 +600,17 @@ class MapBuilder:
 
         # Вызов A* и Дейкстры, отрисовка пути
         try:
+            find_path_start_time = time.time()
             paths = []
             # Длина пути только для сравнения алгоритмов поиска, считается по весам ребер
-            paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
-            # print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
-            # paths.append(networkx.astar_path(self.graph, start_point, end_point, heuristic=astar_heuristic))
-            # print('Длина пути для A*:',
-            #       networkx.astar_path_length(self.graph, start_point, end_point, heuristic=astar_heuristic))
+            if self.graph_params['search_algorithm'] == 'Dijkstra':
+                paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
+                # print('Длина пути для Дейкстры:', networkx.dijkstra_path_length(self.graph, start_point, end_point))
+            elif self.graph_params['search_algorithm'] == 'A*':
+                paths.append(networkx.astar_path(self.graph, start_point, end_point, heuristic=astar_heuristic))
+                # print('Длина пути для A*:',
+                #       networkx.astar_path_length(self.graph, start_point, end_point, heuristic=astar_heuristic))
+            find_path_time = round(time.time() - find_path_start_time, 3)
 
             for path in paths:
                 # Отрисовка черной линии
@@ -663,6 +682,10 @@ class MapBuilder:
                     'Отклонения от курсов на участках'] = f'{[round(angle, 1) for angle in angle_deviation_on_section]} (°)'
                 result_graph['Характеристики графа'] = str(self.graph)
                 result_graph['Точки маршрута'] = str(path_log)
+                result_graph['Время построения графа'] = str(build_graph_time) + ' (секунды)'
+                if not create_new_graph:
+                    result_graph['Время построения графа'] += ' *достроение'
+                result_graph['Время планирования маршрута'] = str(find_path_time) + ' (секунды)'
 
                 # print()
                 # print('Среднее отклонение от курсов на маршруте:', str(round(angle_deviation_mean, 1)) + '°')
@@ -750,13 +773,16 @@ class MapBuilder:
             clusters_img.append(self.save_clustered_image())
 
         log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
-        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n\n'
+        log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        log += 'Время выполнения DBSCAN: ' + str(self.dbscan_time) + ' (секунды)\n\n'
+
         with open('./static/logs/DBSCAN_log.txt', 'a') as log_file:
             log_file.write('Параметры для DBSCAN: ' + str(self.clustering_params) + '\n')
             log_file.write(log)
 
         result_clustering['Всего кластеров'] = f'{str(self.cluster_count)}'
         result_clustering['Доля шума'] = f'{str(self.noise_count)} / {str(self.total_count)}'
+        result_clustering['Время выполнения DBSCAN'] = f'{str(self.dbscan_time)} (секунды)'
         # print(clusters_img)
         # print(log)
 
@@ -783,6 +809,8 @@ class MapBuilder:
 
         log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
         log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
+        log += 'Время выполнения DBSCAN: ' + str(self.dbscan_time) + ' (секунды)\n\n'
+
         with open('./static/logs/PATH_log.txt', 'a') as log_file:
             log_file.write('Параметры для DBSCAN: ' + str(self.clustering_params) + '\n')
             log_file.write(log)
