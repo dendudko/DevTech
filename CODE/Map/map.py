@@ -191,8 +191,8 @@ class MapBuilder:
                     how='any')
                 polygon_geom = shapely.Polygon(
                     zip(self.polygons[i]['x'].values.tolist(), self.polygons[i]['y'].values.tolist()))
-                # polygon_geom2 = shapely.convex_hull(polygon_geom)
-                polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
+                polygon_geom2 = shapely.convex_hull(polygon_geom)
+                # polygon_geom2 = shapely.concave_hull(polygon_geom, ratio=0.5)
                 # Проверка класса polygon_geom2, без этого код может падать из-за Linestring вместо Polygon
                 if isinstance(polygon_geom2, shapely.Polygon):
                     a, b = polygon_geom2.exterior.coords.xy
@@ -254,22 +254,22 @@ class MapBuilder:
                     [shapely.LineString(intersection_bound).interpolate(distance) for distance in
                      distances])
 
-            # Добавляем точки внутрь полигонов
-            for key in self.intersection_bounds.keys():
-                x_min, y_min, x_max, y_max = self.intersections[key].bounds
-                current_y = y_min - distance_delta
-                calculated_points = []
-                while current_y <= y_max:
-                    current_y += distance_delta
-                    current_x = x_min - distance_delta
-                    while current_x <= x_max:
-                        current_x += distance_delta
-                        calculated_points.append(shapely.Point(current_x, current_y))
-                calculated_multi_point = shapely.MultiPoint(calculated_points)
-                actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
-                if isinstance(actual_multi_point, shapely.MultiPoint):
-                    actual_multi_point = actual_multi_point.geoms
-                    self.intersection_points.extend(actual_multi_point)
+            # # Добавляем точки внутрь полигонов
+            # for key in self.intersection_bounds.keys():
+            #     x_min, y_min, x_max, y_max = self.intersections[key].bounds
+            #     current_y = y_min - distance_delta
+            #     calculated_points = []
+            #     while current_y <= y_max:
+            #         current_y += distance_delta
+            #         current_x = x_min - distance_delta
+            #         while current_x <= x_max:
+            #             current_x += distance_delta
+            #             calculated_points.append(shapely.Point(current_x, current_y))
+            #     calculated_multi_point = shapely.MultiPoint(calculated_points)
+            #     actual_multi_point = self.intersections[key].intersection(calculated_multi_point)
+            #     if isinstance(actual_multi_point, shapely.MultiPoint):
+            #         actual_multi_point = actual_multi_point.geoms
+            #         self.intersection_points.extend(actual_multi_point)
 
         for point in self.intersection_points:
             self.context.set_line_width(1.5)
@@ -474,13 +474,19 @@ class MapBuilder:
             #                      current_point.y + math.sin(angle_right_rad) * 1000)
             # self.context.stroke()
             try:
-                current_angles_keys_multipoint = shapely.intersection(
+                # Для варианта с convex_hull
+                current_angles_keys = shapely.intersection(
                     self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
-                current_angles_keys = [
-                    point for point in current_angles_keys_multipoint
-                    if shapely.contains(self.polygon_buffers[key], shapely.LineString([point, current_point]))]
+
+                # # Для варианта с concave_hull
+                # current_angles_keys_multipoint = shapely.intersection(
+                #     self.polygon_buffers[key], shapely.MultiPoint(list(angles.keys()))).geoms
+                # current_angles_keys = [
+                #     point for point in current_angles_keys_multipoint
+                #     if shapely.contains(self.polygon_buffers[key], shapely.LineString([point, current_point]))]
             except AttributeError:
                 continue
+
             for point in current_angles_keys:
                 if angle_left_rad <= angles[point] <= angle_right_rad:
                     if rotation == 180:

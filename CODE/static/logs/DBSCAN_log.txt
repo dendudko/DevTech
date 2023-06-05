@@ -182,3 +182,75 @@
 Всего кластеров: 32
 Доля шума: 16577 / 50495
 
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.3089, 'min_samples': 50}
+Всего кластеров: 31
+Доля шума: 16609 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.3089, 'min_samples': 50}
+Всего кластеров: 31
+Доля шума: 16609 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+
