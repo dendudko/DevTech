@@ -26,26 +26,40 @@
         <div class="clusterization-inputs">
 
             <label title="вес расстояния для метрики DBSCAN" class="clusterization-label">weight_distance</label>
-            <input type="number" step="0.1" required value="{{ clustering_params['weight_distance'] }}"
+            <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_distance'] }}"
                    id="weight_distance" class="clusterization-input"/>
 
             <label title="вес скорости для метрики DBSCAN" class="clusterization-label">weight_speed</label>
-            <input type="number" step="0.1" required value="{{ clustering_params['weight_speed'] }}" id="weight_speed"
+            <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_speed'] }}"
+                   id="weight_speed"
                    class="clusterization-input"/>
 
-            <label title=" вес курса для метрики DBSCAN" class="clusterization-label">weight_course</label>
-            <input type="number" step="0.1" required value="{{ clustering_params['weight_course'] }}" id="weight_course"
+            <label title="вес курса для метрики DBSCAN" class="clusterization-label">weight_course</label>
+            <input type="number" min="0" step="0.1" required value="{{ clustering_params['weight_course'] }}"
+                   id="weight_course"
                    class="clusterization-input"/>
 
             <label title="максимальное расстояние (по метрике) между объектами для признания их соседними в алгоритме DBSCAN"
                    class="clusterization-label">eps</label>
-            <input type="number" step="0.001" required value="{{ clustering_params['eps'] }}" id="eps"
+            <input type="number" min="0" step="0.001" required value="{{ clustering_params['eps'] }}" id="eps"
                    class="clusterization-input"/>
 
             <label title="минимальное число соседей, необходимое для признания объекта ядровым в алгоритме DBSCAN"
                    class="clusterization-label">min_samples</label>
-            <input type="number" required value="{{ clustering_params['min_samples'] }}" id="min_samples"
+            <input type="number" min="0" required value="{{ clustering_params['min_samples'] }}" id="min_samples"
                    class="clusterization-input"/>
+
+            <label title="степень метрики" class="clusterization-label">metric_degree</label>
+            <input type="number" step="1" required value="1" id="metric_degree" min="1"
+                   class="clusterization-input"/>
+
+            <label title="форма оболочки" for="hull_type" class="clusterization-label">hull_type:</label>
+            <select id="hull_type" name="hull_type" class="clusterization-input">
+                <option value="convex_hull">convex</option>
+                <option value="concave_hull">concave</option>
+            </select>
+
+
         </div>
         <div class="buttons">
             <button type="submit" id="do_cluster" class="red_text" style="cursor: pointer " onclick="Do_clustering()">
@@ -53,24 +67,43 @@
             </button>
         </div>
 
-        <div class="route-title">Планирование маршрута</div>
+        <div class="route-title" style="margin-top: 30px;">Планирование маршрута</div>
 
         <div class="route-inputs">
+
+            <label title="добавление точек внутрь пересечений полигонов" for="points_inside_intersections"
+                   class="route-label">points_inside_intersections</label>
+            <input type="checkbox" style="height: 15px;" class="route-input" id="points_inside_intersections"
+                   name="points_type" value="inside_polygon" checked>
+
             <label title="расстояние между генерируемыми точками в пересечениях полигонов" class="route-label">distance_delta</label>
-            <input type="number" step="0.1" required value="{{ graph_params['distance_delta'] }}" id="distance_delta"
+            <input type="number" min="0" step="0.1" required value="{{ graph_params['distance_delta'] }}"
+                   id="distance_delta"
                    class="route-input"/>
 
+            <label title="степень весовой функции ребра" class="clusterization-label">weight_func_degree</label>
+            <input type="number" step="1" required value="1" id="weight_func_degree" min="1"
+                   class="clusterization-input"/>
+
             <label title="угол обзора для узла, в пределах которого возможно добавить ребра в граф" class="route-label">angle_of_vision</label>
-            <input type="number" step="0.1" required value="{{ graph_params['angle_of_vision'] }}" id="angle_of_vision"
+            <input type="number" min="0" step="0.1" required value="{{ graph_params['angle_of_vision'] }}"
+                   id="angle_of_vision"
                    class="route-input"/>
 
             <label title="вес времени прохождения для ребер графа" class="route-label">weight_time</label>
-            <input type="number" step="0.1" required value="{{ graph_params['weight_time_graph'] }}"
+            <input type="number" min="0" step="0.1" required value="{{ graph_params['weight_time_graph'] }}"
                    id="weight_time_graph" class="route-input"/>
 
             <label title="вес соответствия направления среднекластерному для ребер графа " class="route-label">weight_course</label>
-            <input type="number" step="0.01" required value="{{ graph_params['weight_course_graph'] }}"
+            <input type="number" min="0" step="0.01" required value="{{ graph_params['weight_course_graph'] }}"
                    id="weight_course_graph" class="route-input"/>
+
+            <label title="алгоритм поиска по графу" for="algorithm" class="route-label">
+                search_algorithm:</label>
+            <select id="search_algorithm" name="search_algorithm" class="route-input">
+                <option value="Dijkstra">Dijkstra</option>
+                <option value="A*">A*</option>
+            </select>
 
             <label title="начальная точка маршрута" class="route-label">start_coords</label>
             <input style="cursor: pointer;" type="text" id="start_coords" readonly required placeholder="Клик на карте"
@@ -79,6 +112,8 @@
             <label title="конечная точка маршрута" class="route-label">end_coords</label>
             <input style="cursor: pointer;" type="text" id="end_coords" readonly required placeholder="Клик на карте"
                    class="route-input"/>
+
+
         </div>
 
         <div class="buttons">
@@ -326,7 +361,7 @@
             alert("Сначала необходимо кластеризовать данные");
         } else {
             // Получаем значения полей ввода
-            const fields = ['distance_delta', 'angle_of_vision', 'weight_time_graph', 'weight_course_graph', 'start_coords', 'end_coords'];
+            const fields = ['weight_func_degree', 'distance_delta', 'angle_of_vision', 'weight_time_graph', 'weight_course_graph', 'search_algorithm', 'start_coords', 'end_coords'];
             const parameters_for_graph = {};
             let allFieldsFilled = true;
             var alert_list = []
@@ -338,7 +373,7 @@
                 }
                 parameters_for_graph[field] = value;
             });
-
+            parameters_for_graph['points_inside_polygons'] = $('#points_inside_polygon').is(':checked');
 
             // Если не все поля заполнены, выходим из функции
             if (!allFieldsFilled) return alert("Остались незаполненные поля: " + alert_list);
@@ -449,7 +484,7 @@
     function Do_clustering() {
         document.querySelector('.red_text').style.cssText = '';
         // Получаем значения полей ввода
-        const fields = ['weight_distance', 'weight_speed', 'weight_course', 'eps', 'min_samples'];
+        const fields = ['weight_distance', 'weight_speed', 'weight_course', 'eps', 'min_samples', 'metric_degree', 'hull_type'];
         var parameters_for_DBSCAN = {};
         let allFieldsFilled = true;
         var alert_list = []
