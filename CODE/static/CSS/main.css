@@ -173,4 +173,10 @@ button:active {
     top: 6.2em;
 }
 
+select, option, input[type=checkbox] {
+    cursor: pointer;
+}
 
+select {
+    padding: 2px 0;
+}
