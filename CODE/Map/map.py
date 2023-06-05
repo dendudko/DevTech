@@ -809,7 +809,7 @@ class MapBuilder:
 
         log = 'Всего кластеров: ' + str(self.cluster_count) + '\n'
         log += 'Доля шума: ' + str(self.noise_count) + ' / ' + str(self.total_count) + '\n'
-        log += 'Время выполнения DBSCAN: ' + str(self.dbscan_time) + ' (секунды)\n\n'
+        log += 'Время выполнения DBSCAN: ' + str(self.dbscan_time) + ' (секунды)\n'
 
         with open('./static/logs/PATH_log.txt', 'a') as log_file:
             log_file.write('Параметры для DBSCAN: ' + str(self.clustering_params) + '\n')

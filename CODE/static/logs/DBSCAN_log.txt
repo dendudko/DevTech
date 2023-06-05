@@ -600,3 +600,8 @@
 Доля шума: 16577 / 50495
 Время выполнения DBSCAN: 13.37 (секунды)
 
+Параметры для DBSCAN: {'weight_distance': 1.0, 'weight_speed': 5.0, 'weight_course': 20.0, 'eps': 0.309, 'min_samples': 50, 'metric_degree': 2.0, 'hull_type': 'convex_hull'}
+Всего кластеров: 32
+Доля шума: 16577 / 50495
+Время выполнения DBSCAN: 13.37 (секунды)
+
