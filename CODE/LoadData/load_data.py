@@ -21,11 +21,12 @@ def load_data(data_file_name, marine_file_name, create_new_clean_xlsx=False):
 
 
 def process_data(df_data, df_marine, data_file_name):
-    # Если лишних столбцов нет - пропускаем их удаление
-    try:
-        df_data = df_data.drop(columns={'id_track', 'age', 'date_add'})
-    except KeyError:
-        pass
+    # # Если лишних столбцов нет - пропускаем их удаление
+    # try:
+    #     df_data = df_data.drop(columns={'id_track', 'age', 'date_add'})
+    # except KeyError:
+    #     pass
+    df_data = df_data[['id_marine', 'lat', 'lon', 'speed', 'course']]
     df_data = df_data.drop_duplicates()
     df_data = pd.merge(df_data, df_marine[['id_marine', 'port', 'length']], how='left', on='id_marine').dropna(axis=0)
     df_data = df_data.loc[(df_data['course'] != 511) & (df_data['port'] != 0) & (df_data['length'] != 0)].reset_index(
