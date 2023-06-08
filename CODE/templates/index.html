@@ -90,15 +90,15 @@
                    id="distance_delta"
                    class="route-input"/>
 
-            <label for="weight_func_degree" title="степень весовой функции ребра графа" class="clusterization-label">weight_func_degree</label>
-            <input type="number" step="1" required value="{{ graph_params['weight_func_degree'] }}"
-                   id="weight_func_degree" min="1" class="clusterization-input"/>
-
             <label for="angle_of_vision"
                    title="угол обзора для узла, в пределах которого возможно добавить ребра в граф" class="route-label">angle_of_vision</label>
             <input type="number" min="0" step="0.1" required value="{{ graph_params['angle_of_vision'] }}"
                    id="angle_of_vision"
                    class="route-input"/>
+
+            <label for="weight_func_degree" title="степень весовой функции ребра графа" class="clusterization-label">weight_func_degree</label>
+            <input type="number" step="1" required value="{{ graph_params['weight_func_degree'] }}"
+                   id="weight_func_degree" min="1" class="clusterization-input"/>
 
             <label for="weight_time_graph" title="вес времени прохождения для ребер графа" class="route-label">weight_time_graph</label>
             <input type="number" min="0" step="0.1" required value="{{ graph_params['weight_time_graph'] }}"
