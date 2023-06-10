@@ -497,8 +497,9 @@ class MapBuilder:
                     distance = self.get_edge_distance(point, current_point)
                     speed = self.average_speeds[key] / 10
                     p = self.graph_params['weight_func_degree']
-                    weight = pow(pow(abs((distance / speed) * self.graph_params['weight_time_graph']), p) +
-                                 pow(abs(angle_deviation * self.graph_params['weight_course_graph']), p), 1 / p)
+                    weight = np.power(np.power(abs((distance / speed) * self.graph_params['weight_time_graph']), p) +
+                                      np.power(abs(angle_deviation * self.graph_params['weight_course_graph']), p),
+                                      1 / p)
                     if rotation == 180:
                         edge_end, edge_start = current_point, point
                     else:
@@ -519,8 +520,9 @@ class MapBuilder:
         p = self.graph_params['weight_func_degree']
         for edge in self.graph.edges:
             data = self.graph.get_edge_data(edge[0], edge[1])
-            weight = pow(pow(abs((data['distance'] / data['speed']) * self.graph_params['weight_time_graph']), p)
-                         + pow(abs(data['angle_deviation'] * self.graph_params['weight_course_graph']), p), 1 / p)
+            weight = np.power(
+                np.power(abs((data['distance'] / data['speed']) * self.graph_params['weight_time_graph']), p)
+                + np.power(abs(data['angle_deviation'] * self.graph_params['weight_course_graph']), p), 1 / p)
             self.graph.add_edge(edge[0], edge[1], weight=weight, color=data['color'],
                                 angle_deviation=data['angle_deviation'], distance=data['distance'], speed=data['speed'])
 
