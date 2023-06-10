@@ -581,7 +581,8 @@ class MapBuilder:
             paths = []
             # Длина пути только для сравнения алгоритмов поиска, считается по весам ребер
             if self.graph_params['search_algorithm'] == 'Dijkstra':
-                paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
+                # paths.append(networkx.dijkstra_path(self.graph, start_point, end_point))
+                paths.append(networkx.bidirectional_dijkstra(self.graph, start_point, end_point)[1])
             elif self.graph_params['search_algorithm'] == 'A*':
                 paths.append(networkx.astar_path(self.graph, start_point, end_point, heuristic=astar_heuristic))
 
