@@ -568,9 +568,8 @@ class MapBuilder:
         end_interesting_points = self.visit_point(end_point, rotation=180)
 
         if end_interesting_points != 0 and start_interesting_points != 0 and create_new_graph:
-            # Многопоточность позволяет немного уменьшить время выполнения
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                executor.map(self.visit_point, self.intersection_points)
+            for point in self.intersection_points:
+                self.visit_point(point)
 
         if end_point_saved:
             end_point = end_point_saved
