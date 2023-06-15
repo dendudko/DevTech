@@ -410,7 +410,10 @@ class MapBuilder:
                 self.map_image.write_to_png(f)
                 f.close()
 
-            # Отображаем точки
+        self.context = Context(self.map_image)
+
+    def create_empty_map_with_points(self):
+        if self.create_new_empty_map:
             context = Context(self.map_image)
             for row in self.df_points_on_image.itertuples(index=False):
                 context.arc(row[0], row[1], 2, 0 * math.pi / 180, 360 * math.pi / 180)
@@ -428,9 +431,9 @@ class MapBuilder:
             with open(f'./static/images/clean/{self.file_name}_with_points.png', 'wb') as f:
                 self.map_image.write_to_png(f)
 
-        self.map_image = ImageSurface.create_from_png(f'./static/images/clean/{self.file_name}.png')
-        self.context = Context(self.map_image)
-        self.create_new_empty_map = False
+            self.map_image = ImageSurface.create_from_png(f'./static/images/clean/{self.file_name}.png')
+            self.context = Context(self.map_image)
+            self.create_new_empty_map = False
 
     def get_edge_distance(self, point_1, point_2):
         web_x1, web_y1 = self.left_top[0] + point_1.x / self.kx, self.left_top[1] + point_1.y / self.ky
@@ -721,6 +724,7 @@ class MapBuilder:
         for save_mode in 'clusters', 'polygons':
             self.create_empty_map()
             self.calculate_points_on_image()
+            self.create_empty_map_with_points()
             # frac - можно выбрать, какую долю объектов нанести на карту
             if save_mode == 'clusters':
                 self.show_points(frac=1)
@@ -750,6 +754,7 @@ class MapBuilder:
     def find_path(self, x_start, y_start, x_end, y_end, create_new_graph):
         self.create_empty_map()
         self.calculate_points_on_image()
+        self.create_empty_map_with_points()
         self.show_polygons()
         self.show_intersections()
         self.show_average_directions()

@@ -5,6 +5,7 @@ from LoadData.load_data import load_data
 from Map.map import MapBuilder
 import pickle
 import time
+import os
 
 
 def clustering(clustering_params, file_name='all_merged', create_new_empty_map=False):
@@ -35,6 +36,9 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
     df['cluster'] = clusters
     dbscan_time = round(time.time() - dbscan_start_time, 3)
 
+    if (not os.path.exists('./static/images/clean/' + file_name + '_with_points.png') or
+            not os.path.exists('./static/images/clean/' + file_name + '.png')):
+        create_new_empty_map = True
     map_builder = MapBuilder(west=min_lat, south=min_lon, east=max_lat, north=max_lon, zoom=12, df=df,
                              file_name=f'{file_name}', create_new_empty_map=create_new_empty_map)
     map_builder.clustering_params = clustering_params
