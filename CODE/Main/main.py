@@ -32,8 +32,20 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
         clusters = DBSCAN(eps=eps, min_samples=min_samples, metric='minkowski', p=metric_degree,
                           metric_params={'w': [weight_distance, weight_distance,
                                                weight_speed, weight_course]}).fit_predict(X)
-
     df['cluster'] = clusters
+
+    # # Кластеризация шума с увеличенным eps и уменьшенным min_samples
+    # df2 = df.where(df['cluster'] == -1).dropna(how='any')
+    # X = scaler.fit_transform(df2[['lat', 'lon', 'speed', 'course']])
+    # with parallel_backend('loky', n_jobs=-1):
+    #     # Нашел более правильную реализацию метрики, вроде работает получше и побыстрее
+    #     clusters = DBSCAN(eps=eps * 1.1, min_samples=min_samples, metric='minkowski', p=metric_degree,
+    #                       metric_params={'w': [weight_distance, weight_distance,
+    #                                            weight_speed, weight_course]}).fit_predict(X)
+    # max_cluster_number = max(df['cluster'])
+    # df2['cluster'] = [cluster + max_cluster_number if cluster != -1 else cluster for cluster in clusters]
+    # df.update(df2)
+
     dbscan_time = round(time.time() - dbscan_start_time, 3)
 
     if (not os.path.exists('./static/images/clean/' + file_name + '_with_points.png') or
