@@ -6,6 +6,10 @@ from Map.map import MapBuilder
 import pickle
 import time
 import os
+# from sklearn.neighbors import NearestNeighbors
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import statistics
 
 
 def clustering(clustering_params, file_name='all_merged', create_new_empty_map=False):
@@ -32,7 +36,24 @@ def clustering(clustering_params, file_name='all_merged', create_new_empty_map=F
         clusters = DBSCAN(eps=eps, min_samples=min_samples, metric='minkowski', p=metric_degree,
                           metric_params={'w': [weight_distance, weight_distance,
                                                weight_speed, weight_course]}).fit_predict(X)
+        # # Создание графика для подбора eps
+        # neighbors = NearestNeighbors(n_neighbors=min_samples, metric='minkowski', p=metric_degree,
+        #                              metric_params={'w': [weight_distance, weight_distance,
+        #                                                   weight_speed, weight_course]}).fit(X)
+        # distances, indexes = neighbors.kneighbors(X)
+
     df['cluster'] = clusters
+
+    # # Создание графика для подбора eps
+    # mean_distances = np.mean(distances, axis=1)
+    # mean_distances = np.sort(mean_distances)
+    # plt.figure(figsize=(12, 8))
+    # plt.plot(mean_distances)
+    # plt.yticks(np.arange(np.max(mean_distances), step=0.1))
+    # plt.xlabel('Sorted distances over all pairs')
+    # plt.ylabel(f'Mean distance over {min_samples} nearest neighbors')
+    # file_path = f'./static/images/clustered/clustered_{file_name}_eps_for_min_samples_{min_samples}.png'
+    # plt.savefig(file_path)
 
     # # Кластеризация шума с увеличенным eps и уменьшенным min_samples
     # df2 = df.where(df['cluster'] == -1).dropna(how='any')
