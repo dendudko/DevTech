@@ -7,8 +7,9 @@
    3. <code>pip install -r requirements.txt</code> - установка библиотек
    4. <code>[ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH"</code> - добавление пути до установленных библиотек в переменную PATH
    5. <code>echo "export PATH="$PATH >> ~/.bashrc && source ~/.bashrc</code> - сохранение переменной PATH
-   6. <code>flask run</code> - запуск веб-приложения Flask 
-   7. Приложение доступно локально по адресу http://127.0.0.1:5000
+   6. <code>pip install openpyxl</code> - установка библиотеки для работы с Excel
+   7. <code>flask run</code> - запуск веб-приложения Flask 
+   8. Приложение доступно локально по адресу http://127.0.0.1:5000
 
 # Создание requirements.txt:
 (В случае изменения списка импортируемых модулей проекта) 
