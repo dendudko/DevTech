@@ -6,8 +6,9 @@
    2. <code>sudo apt install python3-pip</code> - установка менеджера пакетов pip
    3. <code>pip install -r requirements.txt</code> - установка библиотек
    4. <code>[ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH"</code> - добавление пути до установленных библиотек в переменную PATH
-   5. <code>flask run</code> - запуск веб-приложения Flask 
-   6. Приложение доступно локально по адресу http://127.0.0.1:5000
+   5. <code>echo "export PATH="$PATH >> ~/.bashrc && source ~/.bashrc</code> - сохранение переменной PATH
+   6. <code>flask run</code> - запуск веб-приложения Flask 
+   7. Приложение доступно локально по адресу http://127.0.0.1:5000
 
 # Создание requirements.txt:
 (В случае изменения списка импортируемых модулей проекта) 
