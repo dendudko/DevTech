@@ -1,3 +1,17 @@
-Установка библиотек: <code>pip install -r requirements.txt</code>
+### Инструкция по развертыванию на Linux:
+1. Скачайте zip-архив с файлами проекта на локальный диск
+2. Распакуйте проект и откройте терминал в полученной директории 
+3. Введите следующие команды:
+   1. <code>sudo apt update</code> - синхронизация списков пакетов
+   2. <code>sudo apt install python3.10</code> - установка python 3.10
+   3. <code>sudo apt install python3-pip</code> - установка менеджера пакетов pip
+   4. <code>pip install -r requirements.txt</code> - установка библиотек
+   5. <code>[ -d "$HOME/.local/bin" ] && PATH="$HOME/.local/bin:$PATH"</code> - добавление пути до установленных библиотек в переменную PATH
+   6. <code>flask run</code> - запуск веб-приложения Flask 
+   7. Приложение доступно локально по адресу http://127.0.0.1:5000
 
-Создание requirements.txt: <code>pipreqs.exe --force --encoding=utf-8</code>
+### Создание requirements.txt:
+(В случае изменения списка импортируемых модулей проекта) 
+1. Откройте терминал в директории проекта и введите команды: 
+   1. <code>pip install pipreqs</code> - установка инструмента командной строки для автоматической генерации списка зависимостей Python на основе импортируемых модулей в проекте
+   2. <code>pipreqs --force --encoding=utf-8</code> - создание файла requirements.txt
