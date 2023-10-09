@@ -24,3 +24,6 @@
 1. Откройте терминал в директории проекта TheWay и введите команды: 
    1. <code>pip install pipreqs</code> - установка инструмента командной строки для автоматической генерации списка зависимостей Python на основе импортируемых модулей в проекте
    2. <code>pipreqs --force --encoding=utf-8</code> - создание файла requirements.txt
+
+# Скриншот интерфейса 
+![TheWay](https://github.com/dendudko/DevTech/assets/84952870/a9ca37c7-a13e-4c2b-9a7a-01795afce987)
