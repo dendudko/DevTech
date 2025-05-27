@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div class="form-container">
+    <h3 class="text-center mb-4">Register</h3>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" name="username" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Role</label>
+            <select name="role" class="form-select">
+                <option value="operator">Operator</option>
+                <option value="drone">Drone</option>
+            </select>
+        </div>
+        <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-success">Register</button>
+            <a href="{{ url_for('login') }}" class="btn btn-link">Login</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

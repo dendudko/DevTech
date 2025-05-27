@@ -1,116 +1,5 @@
-.container {
-    display: flex;
-    flex-direction: row;
-    background-color: #f5f5f5;
-    box-sizing: border-box; /* или content-box */
-}
-
-.input_block {
-    display: flex;
-    flex-flow: column wrap;
-    height: 100%;
-    align-items: center;
-    width: auto;
-    margin-bottom: 0;
-    margin-right: 5px;
-    margin-left: 15px;
-}
-
-.clusterization-title, .route-title {
-    color: #555;
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 10px;
-    margin-top: 10px;
-    margin-left: -35px;
-}
-
-.clusterization-label, .route-label {
-    display: inline-block;
-    width: 140px;
-    margin-bottom: 3px;
-    color: #999;
-}
-
-.clusterization-input, .route-input {
-    width: 41%;
-    height: 40%;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-sizing: border-box;
-}
-
-.buttons {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-button[type=submit] {
-    background-color: #ccc;
-    color: #333;
-    padding: 8px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    width: 220px;
-    height: 50px;
-    margin-left: -30px;
-
-}
-
-button:hover {
-    background-color: #555;
-    color: #fff;
-}
-
-button:active {
-    box-shadow: 0 0 5px 5px #c0a3f3;
-}
-
-.map {
-    width: 960px;
-    height: 588px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #f5f5f5;
-}
-
-
-#legend {
-    position: absolute;
-    margin-bottom: 8px;
-    padding: 5px;
-    left: 50px;
-    width: fit-content;
-    max-width: 70%;
-    height: fit-content;
-    background-color: rgba(255, 255, 255, 0.9);
-    border-radius: 5px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: all 0.15s ease-in-out;
-    z-index: 10;
-}
-
-#legend.hide {
-    bottom: -500px;
-}
-
-#legend.show {
-    bottom: 0;
-}
-
-.legend-content {
-    padding: 10px;
-    font-size: 14px;
-}
-
-.ol-touch .ol-control button, .ol-control.ol-layerswitcher {
-    font-size: 1em;
-}
-
-.ol-overlaycontainer-stopevent * {
-    cursor: pointer;
+body {
+    margin: 0;
 }
 
 #loader {
@@ -169,14 +58,200 @@ button:active {
     }
 }
 
+/* Основной контейнер - две колонки: форма и карта */
+.container {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+    background: #f0f0f0;
+    color: #333;
+}
+
+/* Левая панель с параметрами */
+.input_block {
+    width: 420px;
+    padding: 5px 10px 5px 5px;
+    background: #fff;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    overflow-y: auto;
+    border-right: 1px solid #ddd;
+    box-sizing: border-box; /* Добавлено для правильного расчёта ширины */
+}
+
+/* Оформление блоков с details */
+details {
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: #fafafa;
+    padding: 10px;
+    cursor: pointer;
+}
+
+/* Когда details открыт — курсор pointer только на summary */
+details[open] {
+    cursor: auto; /* весь details - обычный курсор */
+}
+
+details[open] > summary {
+    cursor: pointer; /* только summary - pointer */
+}
+
+summary {
+    font-weight: 600;
+    font-size: 1.1em;
+    outline: none;
+    margin-bottom: 8px;
+}
+
+/* Строка параметра: label и input/select в одну линию */
+.param-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 6px 0;
+    gap: 8px; /* немного пространства между label и input */
+}
+
+/* Метка параметра */
+.param-row label {
+    flex: 1 1 60%;
+    margin: 0;
+    white-space: nowrap;
+    font-size: 0.9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Поля ввода и селекты */
+.param-row input,
+.param-row select {
+    flex: 1 1 55%;
+    max-width: 100%;
+    padding: 4px 6px;
+    font-size: 0.9em;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    background-color: #fff;
+    transition: border-color 0.2s ease-in-out;
+    min-width: 0; /* важно для корректного сжатия */
+    cursor: pointer;
+}
+
+.param-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: auto;
+    margin-left: 0;
+    margin-right: 0;
+    cursor: pointer;
+}
+
+/* При фокусе выделяем */
+.param-row input:focus,
+.param-row select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+.buttons {
+    text-align: center;
+    margin-top: 12px;
+}
+
+.buttons button {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+
+    padding: 12px 14px; /* вертикальные и горизонтальные отступы */
+    font-size: 1em;
+
+    white-space: normal; /* разрешаем перенос строк */
+    text-align: center; /* центрируем текст по горизонтали */
+    line-height: 1.3;
+
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #007bff;
+    color: #fff;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.buttons button:hover {
+    background-color: #0056b3;
+}
+
+/* Правая часть с картой */
+.map_block {
+    width: 100%;
+    position: relative;
+}
+
+/* Карта занимает всю высоту и ширину */
+.map {
+    width: 100%;
+    height: 100vh;
+}
+
+#legend {
+    position: absolute;
+    margin-bottom: 8px;
+    padding: 5px;
+    left: 50px;
+    width: fit-content;
+    max-width: 70%;
+    height: fit-content;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.15s ease-in-out;
+    z-index: 10;
+}
+
+#legend.hide {
+    bottom: -500px;
+}
+
+#legend.show {
+    bottom: 0;
+}
+
+.legend-content {
+    padding: 10px;
+    font-size: 14px;
+}
+
+.ol-touch .ol-control button, .ol-control.ol-layerswitcher {
+    font-size: 1em;
+}
+
+.ol-overlaycontainer-stopevent * {
+    cursor: pointer;
+}
+
 .map .ol-rotate {
     top: 6.2em;
 }
 
-select, option, input[type=checkbox] {
-    cursor: pointer;
+/* Скрываем полосу прокрутки в параметрах, если не нужна */
+.input_block::-webkit-scrollbar {
+    width: 0;
 }
 
-select {
-    padding: 2px 0;
+.logout-button {
+    padding: 8px 12px;
+    background-color: rgb(255, 76, 90);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.logout-button:hover {
+    background-color: #c82333;
 }
