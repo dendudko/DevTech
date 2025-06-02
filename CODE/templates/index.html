@@ -154,8 +154,42 @@
     <div id="loader" style="display:none;"></div>
 
     <div class="input_block">
-        <!-- Кластеризация -->
+        <!-- Загрузка и обработка данных -->
         <details open>
+            <summary>Загрузка и обработка данных</summary>
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div class="upload_field">
+                    <label for="file-positions">Данные о движении</label>
+                    <input type="file" id="file-positions" name="file" accept=".csv,.xlsx">
+                </div>
+                <div class="upload_field">
+                    <label for="file-marine">Данные о судах</label>
+                    <input type="file" id="file-marine" name="file" accept=".csv,.xlsx">
+                </div>
+                <div class="param-row" style="font-weight: bold;">Параметры интерполяции</div>
+                <div class="param-row">
+                    <label for="some_interpolation">some_interpolation</label>
+                    <input type="text" id="some_interpolation">
+                </div>
+                <div class="buttons">
+                    <button type="submit" class="red_text">Загрузить и обработать данные</button>
+                </div>
+            </form>
+        </details>
+
+        <!-- Выбор датасета -->
+        <details open>
+            <summary>Выбор датасета</summary>
+            <div class="param-row">
+                Тут нужно сделать вывод датасетов, мб двумя вкладками типо все/мои
+            </div>
+            <div class="buttons">
+                <button type="submit" class="red_text">Подтвердить выбор</button>
+            </div>
+        </details>
+
+        <!-- Кластеризация -->
+        <details>
             <summary>Кластеризация</summary>
             <div class="param-row">
                 <label for="weight_distance">weight_distance</label>
@@ -718,7 +752,9 @@
     document.querySelectorAll('details').forEach(details => {
         details.addEventListener('click', e => {
             // Если клик именно на summary или на checkbox — не вмешиваемся
-            if (e.target.tagName.toLowerCase() === 'summary' || (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'checkbox')) return;
+            if (e.target.tagName.toLowerCase() === 'summary' ||
+                (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'checkbox') ||
+                (e.target.tagName.toLowerCase() === 'input' && e.target.type === 'file')) return;
 
             // Если details закрыт — открываем
             if (!details.open) {

@@ -137,11 +137,11 @@ summary {
     background-color: #fff;
     transition: border-color 0.2s ease-in-out;
     min-width: 0; /* важно для корректного сжатия */
-    cursor: pointer;
+    cursor: auto;
 }
 
 .param-row input[type="checkbox"] {
-    flex: 0 0 auto;
+    flex: none;
     width: auto;
     margin-left: 0;
     margin-right: 0;
@@ -165,7 +165,7 @@ summary {
     max-width: 100%;
     box-sizing: border-box;
 
-    padding: 12px 14px; /* вертикальные и горизонтальные отступы */
+    padding: 6px 7px; /* вертикальные и горизонтальные отступы */
     font-size: 1em;
 
     white-space: normal; /* разрешаем перенос строк */
@@ -239,6 +239,18 @@ summary {
 /* Скрываем полосу прокрутки в параметрах, если не нужна */
 .input_block::-webkit-scrollbar {
     width: 0;
+}
+
+.upload_field {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 4px 0;
+    font-size: 0.9em;
+}
+
+.upload_field input[type="file"] {
+    width: 100%;
+    margin-top: 4px;
 }
 
 .logout-button {
